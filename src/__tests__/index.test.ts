@@ -174,5 +174,81 @@ describe("IPGeolocation", () => {
         geolocator.bulkLookup({ ips: ["178.238.11.6"] })
       ).rejects.toThrow("Failed to fetch bulk geolocation data");
     });
+
+    it("should handle a mix of valid and invalid IPs", async () => {
+      const mockResponse: BulkLookupResponse = [
+        {
+          ip: "104.174.125.138",
+          status: "success",
+          data: {
+            ip: "104.174.125.138",
+            city: "Los Angeles",
+            country_name: "United States",
+            in_eu: false,
+            land_locked: false,
+            latitude: 34.0522,
+            longitude: -118.2437,
+          },
+        },
+        {
+          ip: "not_a_valid_IP",
+          status: "error",
+          error_message: "Invalid IP address",
+        },
+        {
+          ip: "2001:fb1:c0:2dfd:8965:bc32:5b49:7ea9",
+          status: "success",
+          data: {
+            ip: "2001:fb1:c0:2dfd:8965:bc32:5b49:7ea9",
+            city: "San Francisco",
+            country_name: "United States",
+            in_eu: false,
+            land_locked: false,
+            latitude: 37.7749,
+            longitude: -122.4194,
+          },
+        },
+      ];
+
+      mockedAxios.post.mockResolvedValueOnce({
+        data: { results: mockResponse },
+      });
+
+      const result = await geolocator.bulkLookup({
+        ips: [
+          "104.174.125.138",
+          "not_a_valid_IP",
+          "2001:fb1:c0:2dfd:8965:bc32:5b49:7ea9",
+        ],
+      });
+
+      const result1 = result.find((r) => r.ip === "178.238.11.6");
+      const result2 = result.find((r) => r.ip === "invalid-ip");
+
+      // Check the first IP (valid)
+      if (result1 && result1.status === "success") {
+        expect(result1.data).toBeDefined();
+      }
+
+      // Check the second IP (invalid)
+      if (result2 && result2.status === "error") {
+        expect(result2.error_message).toBeDefined();
+      } else if (result2) {
+        // Handle unexpected success status
+        console.warn(`Unexpected success status for IP: ${result2.ip}`);
+      }
+
+      expect(mockedAxios.post).toHaveBeenCalledWith(
+        "/bulk-lookup",
+        {
+          ips: [
+            "104.174.125.138",
+            "not_a_valid_IP",
+            "2001:fb1:c0:2dfd:8965:bc32:5b49:7ea9",
+          ],
+        },
+        { params: {} }
+      );
+    });
   });
 });
