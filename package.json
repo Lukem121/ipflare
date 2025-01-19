@@ -1,6 +1,6 @@
 {
   "name": "ipflare",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "IP Geolocation API, our API enables you to effortlessly obtain precise geolocation data for any IP address through a single endpoint. Benefit from ultra-fast responses—typically between 50-100ms—and enjoy reliable performance with 99.9% uptime.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,9 +9,7 @@
     "test": "jest",
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
-    "lint": "eslint src --ext .ts",
-    "prepare": "npm run build",
-    "publish": "npm publish"
+    "lint": "eslint src --ext .ts"
   },
   "keywords": [
     "ip",
