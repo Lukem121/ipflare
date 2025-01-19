@@ -1,0 +1,25 @@
+.env
+node_modules
+
+# Build and distribution directories
+/dist
+/build
+
+# Log files
+*.log
+
+# Temporary files
+.DS_Store
+Thumbs.db
+
+# Coverage reports
+/coverage
+
+# Compiled output
+*.tsbuildinfo
+
+# Local environment files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
