@@ -1,7 +1,7 @@
 {
-  "name": "ip-geolocation",
-  "version": "1.0.0",
-  "description": "A TypeScript library for IP geolocation",
+  "name": "ipflare",
+  "version": "1.0.2",
+  "description": "IP Geolocation API, our API enables you to effortlessly obtain precise geolocation data for any IP address through a single endpoint. Benefit from ultra-fast responses—typically between 50-100ms—and enjoy reliable performance with 99.9% uptime.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -10,7 +10,8 @@
     "test:coverage": "jest --coverage",
     "test:watch": "jest --watch",
     "lint": "eslint src --ext .ts",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "publish": "npm publish"
   },
   "keywords": [
     "ip",

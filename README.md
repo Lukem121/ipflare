@@ -1,6 +1,6 @@
-<img src="https://www.ipflare.io/logo.svg" alt="IPFlare Logo" width="75" height="40">
+<img src="https://www.ipflare.io/logo.svg" alt="IPFlare Logo" width="100" height="53">
 
-# IPFlare
+# IP Flare
 
 IP Geolocation API, our API enables you to effortlessly obtain precise geolocation data for any IP address through a single endpoint. Benefit from ultra-fast responses—typically between 50-100ms—and enjoy reliable performance with 99.9% uptime.
 
