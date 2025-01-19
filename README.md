@@ -36,6 +36,7 @@ const geolocator = new IPFlare({
 ```typescript
 // Look up a single IP address
 const result = await geolocator.lookup("178.238.11.6");
+
 console.log(result);
 ```
 
@@ -49,6 +50,7 @@ const resultWithFields = await geolocator.lookup("178.238.11.6", {
     isp: true,
   },
 });
+
 console.log(resultWithFields);
 ```
 
@@ -63,6 +65,7 @@ const bulkResults = await geolocator.bulkLookup({
     isp: true,
   },
 });
+
 console.log(bulkResults);
 ```
 
