@@ -1,4 +1,4 @@
-<img src="https://www.ipflare.io/logo.svg" alt="IPFlare Logo" width="100" height="53">
+<img src="https://www.ipflare.io/logo.svg" alt="IP Flare Logo" width="100" height="53">
 
 # IP Flare
 
@@ -16,7 +16,7 @@ npm install ipflare
 
 ## Getting Started
 
-To use the IPFlare library, you'll need an API key. You can obtain your API key from the [IPFlare Dashboard](https://www.ipflare.io/dashboard/api-keys).
+To use the library, you'll need an API key. You can obtain your API key from the [IP Flare Dashboard](https://www.ipflare.io/dashboard/api-keys).
 
 ## Usage
 
