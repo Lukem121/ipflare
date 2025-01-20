@@ -2,7 +2,7 @@
 
 # IP Flare
 
-IP Geolocation API, our API enables you to effortlessly obtain precise geolocation data for any IP address through a single endpoint. Benefit from ultra-fast responses—typically between 50-100ms—and enjoy reliable performance with 99.9% uptime.
+IP Geolocation API, our API enables you to effortlessly obtain precise geolocation data for any IP address through a single endpoint. Benefit from ultra-fast responses—typically between 50-200ms—and enjoy reliable performance with 99.9% uptime.
 
 Visit our website: [www.ipflare.io](https://www.ipflare.io)
 
