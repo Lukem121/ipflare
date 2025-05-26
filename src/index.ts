@@ -161,7 +161,7 @@ export class IPFlare {
       }
 
       const response = await this.client.get<IPGeolocationResponse>(
-        `/${encodeURIComponent(trimmedIP)}`,
+        `/${trimmedIP}`,
         { params }
       );
       return response.data;
@@ -170,11 +170,11 @@ export class IPFlare {
         if (error.response?.status === 401) {
           throw new Error("Invalid API key");
         }
-        if (error.response?.status === 429) {
-          throw new Error("Rate limit exceeded");
-        }
         if (error.response?.data?.error) {
           throw new Error(error.response.data.error);
+        }
+        if (error.response?.status === 429) {
+          throw new Error("Rate limit exceeded");
         }
       }
       throw new Error("Failed to fetch geolocation data");
@@ -240,11 +240,11 @@ export class IPFlare {
         if (error.response?.status === 401) {
           throw new Error("Invalid API key");
         }
-        if (error.response?.status === 429) {
-          throw new Error("Rate limit exceeded");
-        }
         if (error.response?.data?.error) {
           throw new Error(error.response.data.error);
+        }
+        if (error.response?.status === 429) {
+          throw new Error("Rate limit exceeded");
         }
       }
       if (error instanceof Error) {

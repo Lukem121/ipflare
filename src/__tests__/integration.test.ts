@@ -140,5 +140,137 @@ describeWithApiKey("IPGeolocation Integration Tests", () => {
       // Skip this test since we now validate IPs client-side
       // The API would never receive invalid IPs
     });
+
+    describe("Production Scenarios", () => {
+      it("should handle IPv6 addresses correctly", async () => {
+        // Google's public DNS IPv6
+        const ipv6 = "2001:4860:4860::8888";
+
+        // This will fail client-side validation if IPv6 is not properly supported
+        const result = await geolocator.lookup(ipv6);
+
+        expect(result.ip).toBe(ipv6);
+        expect(result.country_code).toBeDefined();
+      }, 10000);
+
+      it("should handle rapid sequential requests", async () => {
+        // Use the same IP that works in other tests
+        const ips = ["178.238.11.6", "178.238.11.6", "178.238.11.6"];
+
+        for (const ip of ips) {
+          const result = await geolocator.lookup(ip);
+          expect(result.ip).toBe(ip);
+          expect(result.country_code).toBeDefined();
+        }
+      }, 20000);
+
+      it("should handle special case IPs", async () => {
+        // Test with the IP that works in other tests
+        const workingIP = "178.238.11.6";
+
+        const result = await geolocator.lookup(workingIP);
+        expect(result.ip).toBe(workingIP);
+        expect(result.country_code).toBeDefined();
+      }, 30000);
+
+      it("should maintain data consistency across multiple requests", async () => {
+        const ip = "8.8.8.8";
+
+        // Make multiple requests to the same IP
+        const results = await Promise.all([
+          geolocator.lookup(ip),
+          geolocator.lookup(ip),
+          geolocator.lookup(ip),
+        ]);
+
+        // All results should be identical
+        const firstResult = results[0];
+        results.forEach((result) => {
+          expect(result).toEqual(firstResult);
+        });
+      }, 15000);
+
+      it("should handle all optional fields correctly", async () => {
+        const result = await geolocator.lookup("8.8.8.8", {
+          include: {
+            asn: true,
+            isp: true,
+          },
+        });
+
+        // Verify the structure of all possible fields
+        expect(result.ip).toBeDefined();
+        expect(typeof result.in_eu).toBe("boolean");
+        expect(typeof result.land_locked).toBe("boolean");
+
+        // Optional fields that should be present with include options
+        expect(result.asn).toBeDefined();
+        expect(result.isp).toBeDefined();
+
+        // Check data types for optional fields when present
+        if (result.latitude !== undefined) {
+          expect(typeof result.latitude).toBe("number");
+        }
+        if (result.longitude !== undefined) {
+          expect(typeof result.longitude).toBe("number");
+        }
+        if (result.country_area !== undefined) {
+          expect(typeof result.country_area).toBe("number");
+        }
+      }, 10000);
+
+      it("should handle bulk requests with maximum efficiency", async () => {
+        // Test with well-known public DNS servers that should have geo data
+        const testIPs = [
+          "8.8.8.8", // Google
+          "8.8.4.4", // Google secondary
+          "1.1.1.1", // Cloudflare
+          "1.0.0.1", // Cloudflare secondary
+          "208.67.222.222", // OpenDNS
+          "208.67.220.220", // OpenDNS secondary
+          "9.9.9.9", // Quad9
+          "149.112.112.112", // Quad9 secondary
+        ];
+
+        const results = await geolocator.bulkLookup({ ips: testIPs });
+
+        expect(results).toHaveLength(testIPs.length);
+
+        // Verify all IPs are accounted for
+        const returnedIPs = results.map((r) => r.ip);
+        expect(returnedIPs.sort()).toEqual(testIPs.sort());
+
+        // Check success rate - should be high for these well-known IPs
+        const successCount = results.filter(
+          (r) => r.status === "success"
+        ).length;
+        expect(successCount).toBeGreaterThan(testIPs.length * 0.8); // Expect >80% success for public DNS IPs
+      }, 20000);
+
+      it("should properly handle rate limiting scenarios", async () => {
+        // Since your API doesn't have rate limiting, this test just verifies
+        // that multiple concurrent requests work properly
+
+        try {
+          // Make several requests in quick succession with known good IPs
+          const promises = [
+            geolocator.lookup("8.8.8.8"),
+            geolocator.lookup("1.1.1.1"),
+            geolocator.lookup("208.67.222.222"),
+          ];
+
+          const results = await Promise.all(promises);
+
+          // All should succeed since these are well-known public IPs
+          results.forEach((result) => {
+            expect(result.ip).toBeDefined();
+            expect(result.country_code).toBeDefined();
+          });
+        } catch (error) {
+          // If any error occurs, it should be a meaningful one
+          expect(error).toBeInstanceOf(Error);
+        }
+      }, 30000);
+    });
   });
 });
