@@ -1,4 +1,4 @@
-import { IPFlare } from "../index";
+import { IPFlare, isSuccess } from "../index";
 import dotenv from "dotenv";
 
 // Load environment variables
@@ -20,17 +20,20 @@ describeWithApiKey("IPGeolocation Integration Tests", () => {
     it("should fetch data for Google DNS IP", async () => {
       const result = await geolocator.lookup("178.238.11.6");
 
-      // Basic validation of the response structure
-      expect(result.ip).toBe("178.238.11.6");
-      expect(result.country_code).toBeDefined();
-      expect(result.city).toBeDefined();
-      expect(result.latitude).toBeDefined();
-      expect(result.longitude).toBeDefined();
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        // Basic validation of the response structure
+        expect(result.data.ip).toBe("178.238.11.6");
+        expect(result.data.country_code).toBeDefined();
+        expect(result.data.city).toBeDefined();
+        expect(result.data.latitude).toBeDefined();
+        expect(result.data.longitude).toBeDefined();
 
-      // Type checks
-      expect(typeof result.country_code).toBe("string");
-      expect(typeof result.latitude).toBe("number");
-      expect(typeof result.longitude).toBe("number");
+        // Type checks
+        expect(typeof result.data.country_code).toBe("string");
+        expect(typeof result.data.latitude).toBe("number");
+        expect(typeof result.data.longitude).toBe("number");
+      }
     }, 10000);
 
     it("should fetch data with ASN and ISP fields", async () => {
@@ -41,67 +44,84 @@ describeWithApiKey("IPGeolocation Integration Tests", () => {
         },
       });
 
-      // Validate optional fields are present
-      expect(result.asn).toBeDefined();
-      expect(result.isp).toBeDefined();
-      expect(["string", "number"].includes(typeof result.asn)).toBe(true);
-      expect(typeof result.isp).toBe("string");
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        // Validate optional fields are present
+        expect(result.data.asn).toBeDefined();
+        expect(result.data.isp).toBeDefined();
+        expect(["string", "number"].includes(typeof result.data.asn)).toBe(
+          true
+        );
+        expect(typeof result.data.isp).toBe("string");
+      }
     }, 10000);
 
     it("should handle invalid IP addresses", async () => {
-      await expect(geolocator.lookup("invalid-ip")).rejects.toThrow();
+      const result = await geolocator.lookup("invalid-ip");
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("INVALID_IP_ADDRESS");
+      }
     });
   });
 
   describe("bulkLookup", () => {
     it("should fetch data for multiple IPs", async () => {
-      const results = await geolocator.bulkLookup({
+      const result = await geolocator.bulkLookup({
         ips: ["178.238.11.6", "1.1.1.1"],
       });
 
-      // Validate response structure
-      expect(Array.isArray(results)).toBe(true);
-      expect(results).toHaveLength(2);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        const results = result.data;
+        // Validate response structure
+        expect(Array.isArray(results)).toBe(true);
+        expect(results).toHaveLength(2);
 
-      // Check each result has the required structure
-      results.forEach((result) => {
-        expect(result).toHaveProperty("ip");
-        expect(result).toHaveProperty("status");
+        // Check each result has the required structure
+        results.forEach((result) => {
+          expect(result).toHaveProperty("ip");
+          expect(result).toHaveProperty("status");
 
-        if (result.status === "success") {
-          expect(result.data).toHaveProperty("country_code");
-          expect(result.data).toHaveProperty("latitude");
-          expect(result.data).toHaveProperty("longitude");
-        }
-      });
+          if (result.status === "success") {
+            expect(result.data).toHaveProperty("country_code");
+            expect(result.data).toHaveProperty("latitude");
+            expect(result.data).toHaveProperty("longitude");
+          }
+        });
 
-      // At least one result should be successful
-      expect(results.some((r) => r.status === "success")).toBe(true);
+        // At least one result should be successful
+        expect(results.some((r) => r.status === "success")).toBe(true);
+      }
     }, 15000);
 
     it("should handle mixed valid and invalid IPs", async () => {
-      const results = await geolocator.bulkLookup({
+      const result = await geolocator.bulkLookup({
         ips: ["8.8.8.8", "178.238.11.6"],
       });
 
-      expect(results).toHaveLength(2);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        const results = result.data;
+        expect(results).toHaveLength(2);
 
-      // All results should have the required structure
-      results.forEach((result) => {
-        expect(result).toHaveProperty("ip");
-        expect(result).toHaveProperty("status");
+        // All results should have the required structure
+        results.forEach((result) => {
+          expect(result).toHaveProperty("ip");
+          expect(result).toHaveProperty("status");
 
-        if (result.status === "success") {
-          expect(result.data).toBeDefined();
-        }
-      });
+          if (result.status === "success") {
+            expect(result.data).toBeDefined();
+          }
+        });
 
-      // At least one result should be successful
-      expect(results.some((r) => r.status === "success")).toBe(true);
+        // At least one result should be successful
+        expect(results.some((r) => r.status === "success")).toBe(true);
+      }
     }, 15000);
 
     it("should fetch bulk data with ASN and ISP fields", async () => {
-      const results = await geolocator.bulkLookup({
+      const result = await geolocator.bulkLookup({
         ips: ["178.238.11.6", "1.1.1.1"],
         include: {
           asn: true,
@@ -109,36 +129,57 @@ describeWithApiKey("IPGeolocation Integration Tests", () => {
         },
       });
 
-      // Check successful responses for ASN and ISP fields
-      const successResults = results.filter((r) => r.status === "success");
-      expect(successResults.length).toBeGreaterThan(0);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        const results = result.data;
+        // Check successful responses for ASN and ISP fields
+        const successResults = results.filter((r) => r.status === "success");
+        expect(successResults.length).toBeGreaterThan(0);
 
-      successResults.forEach((result) => {
-        expect(result.data.asn).toBeDefined();
-        expect(result.data.isp).toBeDefined();
-        expect(["string", "number"].includes(typeof result.data.asn)).toBe(
-          true
-        );
-        expect(typeof result.data.isp).toBe("string");
-      });
+        successResults.forEach((result) => {
+          expect(result.data.asn).toBeDefined();
+          expect(result.data.isp).toBeDefined();
+          expect(["string", "number"].includes(typeof result.data.asn)).toBe(
+            true
+          );
+          expect(typeof result.data.isp).toBe("string");
+        });
+      }
     }, 15000);
 
     it("should handle empty array", async () => {
-      await expect(geolocator.bulkLookup({ ips: [] })).rejects.toThrow(
-        "At least one IP address is required"
-      );
+      const result = await geolocator.bulkLookup({ ips: [] });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("INVALID_INPUT");
+        expect(result.error.message).toBe(
+          "At least one IP address is required"
+        );
+      }
     });
 
     it("should handle array exceeding limit", async () => {
       const tooManyIPs = new Array(501).fill("178.238.11.6");
-      await expect(geolocator.bulkLookup({ ips: tooManyIPs })).rejects.toThrow(
-        "Maximum of 500 IPs per request allowed"
-      );
+      const result = await geolocator.bulkLookup({ ips: tooManyIPs });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("INVALID_INPUT");
+        expect(result.error.message).toBe(
+          "Maximum of 500 IPs per request allowed"
+        );
+      }
     });
 
     it("should handle a mix of valid and invalid IPs", async () => {
-      // Skip this test since we now validate IPs client-side
-      // The API would never receive invalid IPs
+      // This will now fail client-side validation
+      const result = await geolocator.bulkLookup({
+        ips: ["8.8.8.8", "invalid-ip", "1.1.1.1"],
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("INVALID_IP_ADDRESS");
+        expect(result.error.message).toContain("Invalid IP addresses found");
+      }
     });
 
     describe("Production Scenarios", () => {
@@ -146,11 +187,13 @@ describeWithApiKey("IPGeolocation Integration Tests", () => {
         // Google's public DNS IPv6
         const ipv6 = "2001:4860:4860::8888";
 
-        // This will fail client-side validation if IPv6 is not properly supported
         const result = await geolocator.lookup(ipv6);
 
-        expect(result.ip).toBe(ipv6);
-        expect(result.country_code).toBeDefined();
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.data.ip).toBe(ipv6);
+          expect(result.data.country_code).toBeDefined();
+        }
       }, 10000);
 
       it("should handle rapid sequential requests", async () => {
@@ -159,8 +202,11 @@ describeWithApiKey("IPGeolocation Integration Tests", () => {
 
         for (const ip of ips) {
           const result = await geolocator.lookup(ip);
-          expect(result.ip).toBe(ip);
-          expect(result.country_code).toBeDefined();
+          expect(result.ok).toBe(true);
+          if (result.ok) {
+            expect(result.data.ip).toBe(ip);
+            expect(result.data.country_code).toBeDefined();
+          }
         }
       }, 20000);
 
@@ -169,8 +215,11 @@ describeWithApiKey("IPGeolocation Integration Tests", () => {
         const workingIP = "178.238.11.6";
 
         const result = await geolocator.lookup(workingIP);
-        expect(result.ip).toBe(workingIP);
-        expect(result.country_code).toBeDefined();
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          expect(result.data.ip).toBe(workingIP);
+          expect(result.data.country_code).toBeDefined();
+        }
       }, 30000);
 
       it("should maintain data consistency across multiple requests", async () => {
@@ -183,11 +232,23 @@ describeWithApiKey("IPGeolocation Integration Tests", () => {
           geolocator.lookup(ip),
         ]);
 
-        // All results should be identical
-        const firstResult = results[0];
+        // All results should be successful and identical
         results.forEach((result) => {
-          expect(result).toEqual(firstResult);
+          expect(result.ok).toBe(true);
         });
+
+        // If all successful, compare the data
+        if (results.every(isSuccess)) {
+          const firstResult = results[0];
+          if (firstResult.ok) {
+            const firstData = firstResult.data;
+            for (const result of results) {
+              if (result.ok) {
+                expect(result.data).toEqual(firstData);
+              }
+            }
+          }
+        }
       }, 15000);
 
       it("should handle all optional fields correctly", async () => {
@@ -198,24 +259,27 @@ describeWithApiKey("IPGeolocation Integration Tests", () => {
           },
         });
 
-        // Verify the structure of all possible fields
-        expect(result.ip).toBeDefined();
-        expect(typeof result.in_eu).toBe("boolean");
-        expect(typeof result.land_locked).toBe("boolean");
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          // Verify the structure of all possible fields
+          expect(result.data.ip).toBeDefined();
+          expect(typeof result.data.in_eu).toBe("boolean");
+          expect(typeof result.data.land_locked).toBe("boolean");
 
-        // Optional fields that should be present with include options
-        expect(result.asn).toBeDefined();
-        expect(result.isp).toBeDefined();
+          // Optional fields that should be present with include options
+          expect(result.data.asn).toBeDefined();
+          expect(result.data.isp).toBeDefined();
 
-        // Check data types for optional fields when present
-        if (result.latitude !== undefined) {
-          expect(typeof result.latitude).toBe("number");
-        }
-        if (result.longitude !== undefined) {
-          expect(typeof result.longitude).toBe("number");
-        }
-        if (result.country_area !== undefined) {
-          expect(typeof result.country_area).toBe("number");
+          // Check data types for optional fields when present
+          if (result.data.latitude !== undefined) {
+            expect(typeof result.data.latitude).toBe("number");
+          }
+          if (result.data.longitude !== undefined) {
+            expect(typeof result.data.longitude).toBe("number");
+          }
+          if (result.data.country_area !== undefined) {
+            expect(typeof result.data.country_area).toBe("number");
+          }
         }
       }, 10000);
 
@@ -232,19 +296,23 @@ describeWithApiKey("IPGeolocation Integration Tests", () => {
           "149.112.112.112", // Quad9 secondary
         ];
 
-        const results = await geolocator.bulkLookup({ ips: testIPs });
+        const result = await geolocator.bulkLookup({ ips: testIPs });
 
-        expect(results).toHaveLength(testIPs.length);
+        expect(result.ok).toBe(true);
+        if (result.ok) {
+          const results = result.data;
+          expect(results).toHaveLength(testIPs.length);
 
-        // Verify all IPs are accounted for
-        const returnedIPs = results.map((r) => r.ip);
-        expect(returnedIPs.sort()).toEqual(testIPs.sort());
+          // Verify all IPs are accounted for
+          const returnedIPs = results.map((r) => r.ip);
+          expect(returnedIPs.sort()).toEqual(testIPs.sort());
 
-        // Check success rate - should be high for these well-known IPs
-        const successCount = results.filter(
-          (r) => r.status === "success"
-        ).length;
-        expect(successCount).toBeGreaterThan(testIPs.length * 0.8); // Expect >80% success for public DNS IPs
+          // Check success rate - should be high for these well-known IPs
+          const successCount = results.filter(
+            (r) => r.status === "success"
+          ).length;
+          expect(successCount).toBeGreaterThan(testIPs.length * 0.8); // Expect >80% success for public DNS IPs
+        }
       }, 20000);
 
       it("should properly handle quota scenarios", async () => {
@@ -269,24 +337,33 @@ describeWithApiKey("IPGeolocation Integration Tests", () => {
           // Make many requests in quick succession
           const promises = knownGoodIPs.map((ip) => geolocator.lookup(ip));
 
-          await Promise.all(promises);
-          // If no quota limit, that's fine
-        } catch (error) {
-          // If we hit a quota limit, ensure it's properly reported
-          if (error instanceof Error && error.message === "Quota exceeded") {
-            expect(error.message).toBe("Quota exceeded");
-          } else if (
-            error instanceof Error &&
-            error.message.includes("Geolocation data not found")
-          ) {
-            // Some IPs might not have geolocation data, which is acceptable
-            console.log(
-              "Some IPs don't have geolocation data, which is expected"
-            );
+          const results = await Promise.all(promises);
+
+          // Check if any results indicate quota exceeded
+          const quotaExceeded = results.some(
+            (result) => !result.ok && result.error.type === "QUOTA_EXCEEDED"
+          );
+
+          if (quotaExceeded) {
+            console.log("Quota limit reached, which is expected behavior");
           } else {
-            // Re-throw if it's a different error
-            throw error;
+            // If no quota limit, ensure all requests were successful or had valid errors
+            results.forEach((result) => {
+              if (!result.ok) {
+                // Valid error types we might encounter
+                const validErrorTypes = [
+                  "GEOLOCATION_NOT_FOUND",
+                  "RESERVED_IP_ADDRESS",
+                  "NETWORK_ERROR",
+                  "UNKNOWN_ERROR",
+                ];
+                expect(validErrorTypes).toContain(result.error.type);
+              }
+            });
           }
+        } catch (error) {
+          // This shouldn't happen with the new Result-based API
+          throw new Error(`Unexpected exception: ${error}`);
         }
       }, 30000);
     });

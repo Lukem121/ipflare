@@ -170,65 +170,9 @@ export class IPFlare {
    * Get geolocation data for a single IP address
    * @param ip - IP address to lookup
    * @param options - Additional options for the lookup
-   * @returns Promise with geolocation data
-   * @throws Error if IP address is not provided or invalid, or if the API request fails
-   */
-  async lookup(
-    ip: string,
-    options: LookupOptions = {}
-  ): Promise<IPGeolocationResponse> {
-    if (!ip) {
-      throw new Error("IP address is required");
-    }
-
-    if (typeof ip !== "string") {
-      throw new TypeError("IP address must be a string");
-    }
-
-    const trimmedIP = ip.trim();
-    if (!this.isValidIP(trimmedIP)) {
-      throw new Error(`Invalid IP address format: ${ip}`);
-    }
-
-    try {
-      const params: Record<string, string> = {};
-      const fields: string[] = [];
-
-      if (options.include?.asn) fields.push("asn");
-      if (options.include?.isp) fields.push("isp");
-
-      if (fields.length > 0) {
-        params.fields = fields.join(",");
-      }
-
-      const response = await this.client.get<IPGeolocationResponse>(
-        `/${trimmedIP}`,
-        { params }
-      );
-      return response.data;
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        if (error.response?.status === 401) {
-          throw new Error("Invalid API key");
-        }
-        if (error.response?.data?.error) {
-          throw new Error(error.response.data.error);
-        }
-        if (error.response?.status === 429) {
-          throw new Error("Quota exceeded");
-        }
-      }
-      throw new Error("Failed to fetch geolocation data");
-    }
-  }
-
-  /**
-   * Get geolocation data for a single IP address (safe version - no exceptions)
-   * @param ip - IP address to lookup
-   * @param options - Additional options for the lookup
    * @returns Promise with Result containing geolocation data or error
    */
-  async safeLookup(
+  async lookup(
     ip: string,
     options: LookupOptions = {}
   ): Promise<Result<IPGeolocationResponse>> {
@@ -254,6 +198,23 @@ export class IPFlare {
     }
 
     const trimmedIP = ip.trim();
+
+    // Check if the IP contains control characters or non-space whitespace
+    if (
+      ip.includes("\n") ||
+      ip.includes("\r") ||
+      ip.includes("\t") ||
+      ip.includes("\0")
+    ) {
+      return {
+        ok: false,
+        error: {
+          type: "INVALID_IP_ADDRESS",
+          message: `Invalid IP address format: ${ip}`,
+        },
+      };
+    }
+
     if (!this.isValidIP(trimmedIP)) {
       return {
         ok: false,
@@ -369,11 +330,11 @@ export class IPFlare {
   }
 
   /**
-   * Get geolocation data for multiple IP addresses (safe version - no exceptions)
+   * Get geolocation data for multiple IP addresses
    * @param options - Options for bulk lookup including IPs array and additional fields
    * @returns Promise with Result containing array of geolocation data or error
    */
-  async safeBulkLookup(
+  async bulkLookup(
     options: BulkLookupOptions
   ): Promise<Result<BulkLookupResponse>> {
     const { ips, include } = options;
@@ -412,7 +373,14 @@ export class IPFlare {
     // Validate all IPs
     const invalidIPs = ips.filter((ip) => {
       if (typeof ip !== "string") return true;
-      return !this.isValidIP(ip.trim());
+      const trimmedIP = ip.trim();
+      // Check if IP contains control characters or is invalid format
+      const hasControlChars =
+        ip.includes("\n") ||
+        ip.includes("\r") ||
+        ip.includes("\t") ||
+        ip.includes("\0");
+      return hasControlChars || !this.isValidIP(trimmedIP);
     });
 
     if (invalidIPs.length > 0) {
@@ -540,79 +508,6 @@ export class IPFlare {
           details: error,
         },
       };
-    }
-  }
-
-  /**
-   * Get geolocation data for multiple IP addresses
-   * @param options - Options for bulk lookup including IPs array and additional fields
-   * @returns Promise with array of geolocation data or errors
-   * @throws Error if IPs array is empty or exceeds 500 items, or if the API request fails
-   */
-  async bulkLookup(options: BulkLookupOptions): Promise<BulkLookupResponse> {
-    const { ips, include } = options;
-
-    if (!Array.isArray(ips)) {
-      throw new TypeError("IPs must be an array");
-    }
-
-    if (!ips.length) {
-      throw new Error("At least one IP address is required");
-    }
-
-    if (ips.length > 500) {
-      throw new Error("Maximum of 500 IPs per request allowed");
-    }
-
-    // Validate all IPs
-    const invalidIPs = ips.filter((ip) => {
-      if (typeof ip !== "string") return true;
-      return !this.isValidIP(ip.trim());
-    });
-
-    if (invalidIPs.length > 0) {
-      throw new Error(`Invalid IP addresses found: ${invalidIPs.join(", ")}`);
-    }
-
-    try {
-      const params: Record<string, string> = {};
-      const fields: string[] = [];
-
-      if (include?.asn) fields.push("asn");
-      if (include?.isp) fields.push("isp");
-
-      if (fields.length > 0) {
-        params.fields = fields.join(",");
-      }
-
-      const trimmedIPs = ips.map((ip) => ip.trim());
-      const response = await this.client.post<{ results: BulkLookupResponse }>(
-        "/bulk-lookup",
-        { ips: trimmedIPs },
-        { params }
-      );
-
-      if (!response.data.results || !Array.isArray(response.data.results)) {
-        throw new Error("Invalid response format from API");
-      }
-
-      return response.data.results;
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        if (error.response?.status === 401) {
-          throw new Error("Invalid API key");
-        }
-        if (error.response?.data?.error) {
-          throw new Error(error.response.data.error);
-        }
-        if (error.response?.status === 429) {
-          throw new Error("Quota exceeded");
-        }
-      }
-      if (error instanceof Error) {
-        throw error;
-      }
-      throw new Error("Failed to fetch bulk geolocation data");
     }
   }
 }

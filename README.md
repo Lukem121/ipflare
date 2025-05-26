@@ -31,15 +31,15 @@ const geolocator = new IPFlare({
 });
 ```
 
-### Safe API (Recommended) - No Try-Catch Required
+### Result-Based API - No Try-Catch Required
 
-The safe API methods return a `Result` object with an `ok` property, eliminating the need for try-catch blocks:
+The API methods return a `Result` object with an `ok` property, eliminating the need for try-catch blocks:
 
-#### Single IP Lookup (Safe)
+#### Single IP Lookup
 
 ```typescript
-// Safe lookup - no try-catch needed
-const result = await geolocator.safeLookup("178.238.11.6");
+// Result-based lookup - no try-catch needed
+const result = await geolocator.lookup("178.238.11.6");
 
 if (!result.ok) {
   // Handle different error types
@@ -75,11 +75,11 @@ if (!result.ok) {
 console.log('Location:', result.data.city, result.data.country_name);
 ```
 
-#### Bulk IP Lookup (Safe)
+#### Bulk IP Lookup
 
 ```typescript
-// Safe bulk lookup
-const bulkResult = await geolocator.safeBulkLookup({
+// Result-based bulk lookup
+const bulkResult = await geolocator.bulkLookup({
   ips: ["178.238.11.6", "1.1.1.1"],
   include: {
     asn: true,
@@ -104,7 +104,7 @@ for (const item of bulkResult.data) {
 
 #### Error Types
 
-The safe API provides structured error types that match the actual API responses:
+The Result-based API provides structured error types that match the actual API responses:
 
 - `INVALID_IP_ADDRESS` - Invalid IP address format
 - `RESERVED_IP_ADDRESS` - IP address is reserved (private/local)
@@ -118,51 +118,39 @@ The safe API provides structured error types that match the actual API responses
 - `VALIDATION_ERROR` - Client-side input validation errors
 - `UNKNOWN_ERROR` - Unexpected errors
 
-### Traditional API (Backward Compatible)
-
-The original API methods are still available for backward compatibility:
-
-#### Single IP Lookup
-
-```typescript
-try {
-  const result = await geolocator.lookup("178.238.11.6");
-  console.log(result);
-} catch (error) {
-  console.error('Lookup failed:', error);
-}
-```
+### Additional Examples
 
 #### Lookup with Additional Fields
 
 ```typescript
-try {
-  const resultWithFields = await geolocator.lookup("178.238.11.6", {
-    include: {
-      asn: true,
-      isp: true,
-    },
-  });
-  console.log(resultWithFields);
-} catch (error) {
-  console.error('Lookup failed:', error);
+const resultWithFields = await geolocator.lookup("178.238.11.6", {
+  include: {
+    asn: true,
+    isp: true,
+  },
+});
+
+if (resultWithFields.ok) {
+  console.log('ASN:', resultWithFields.data.asn);
+  console.log('ISP:', resultWithFields.data.isp);
+} else {
+  console.error('Lookup failed:', resultWithFields.error.message);
 }
 ```
 
-#### Bulk IP Lookup
+#### Using Type Guards
 
 ```typescript
-try {
-  const bulkResults = await geolocator.bulkLookup({
-    ips: ["178.238.11.6", "1.1.1.1"],
-    include: {
-      asn: true,
-      isp: true,
-    },
-  });
-  console.log(bulkResults);
-} catch (error) {
-  console.error('Bulk lookup failed:', error);
+import { isSuccess, isError } from 'ipflare';
+
+const result = await geolocator.lookup("8.8.8.8");
+
+if (isSuccess(result)) {
+  // TypeScript knows this is a success result
+  console.log(`IP ${result.data.ip} is in ${result.data.country_name}`);
+} else if (isError(result)) {
+  // TypeScript knows this is an error result
+  console.log(`Error: ${result.error.message}`);
 }
 ```
 
@@ -176,11 +164,12 @@ For more detailed information, please refer to our documentation:
 
 ## Features
 
-- **Safe API**: No try-catch required, structured error handling
-- **Traditional API**: Backward compatible exception-based API
-- Single IP lookup
-- Bulk IP lookup (up to 500 IPs)
-- Optional fields support (ASN, ISP)
-- Comprehensive geolocation data
-- TypeScript support with full type definitions
-- Structured error types for better error handling
+- **Result-based API**: No try-catch required, all methods return Result types
+- **Structured Error Handling**: Comprehensive error types with detailed information
+- **Single IP Lookup**: Fast geolocation lookup for individual IP addresses
+- **Bulk IP Lookup**: Process up to 500 IPs in a single request
+- **IPv4 & IPv6 Support**: Full support for both IPv4 and IPv6 addresses
+- **Optional Fields**: ASN, ISP, and other additional data fields
+- **TypeScript Support**: Full type definitions with type guards
+- **Input Validation**: Client-side validation prevents invalid API calls
+- **Production Ready**: Comprehensive testing and enterprise-grade reliability
