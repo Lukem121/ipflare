@@ -45,6 +45,47 @@ export interface IPGeolocationSuccess {
 
 export type BulkLookupResponse = (IPGeolocationSuccess | IPGeolocationError)[];
 
+// New Result Types for improved error handling
+export type ErrorType =
+  | "INVALID_IP_ADDRESS"
+  | "RESERVED_IP_ADDRESS"
+  | "GEOLOCATION_NOT_FOUND"
+  | "INTERNAL_SERVER_ERROR"
+  | "INVALID_INPUT"
+  | "UNAUTHORIZED"
+  | "QUOTA_EXCEEDED"
+  | "NO_API_KEY_PROVIDED"
+  | "NETWORK_ERROR"
+  | "VALIDATION_ERROR"
+  | "UNKNOWN_ERROR";
+
+export interface ResultError {
+  type: ErrorType;
+  message: string;
+  details?: unknown;
+}
+
+export interface SuccessResult<T> {
+  ok: true;
+  data: T;
+}
+
+export interface ErrorResult {
+  ok: false;
+  error: ResultError;
+}
+
+export type Result<T> = SuccessResult<T> | ErrorResult;
+
+// Type guards for new result types
+export function isSuccess<T>(result: Result<T>): result is SuccessResult<T> {
+  return result.ok === true;
+}
+
+export function isError<T>(result: Result<T>): result is ErrorResult {
+  return result.ok === false;
+}
+
 export interface IPGeolocationOptions {
   apiKey: string;
   baseURL?: string;
@@ -174,10 +215,331 @@ export class IPFlare {
           throw new Error(error.response.data.error);
         }
         if (error.response?.status === 429) {
-          throw new Error("Rate limit exceeded");
+          throw new Error("Quota exceeded");
         }
       }
       throw new Error("Failed to fetch geolocation data");
+    }
+  }
+
+  /**
+   * Get geolocation data for a single IP address (safe version - no exceptions)
+   * @param ip - IP address to lookup
+   * @param options - Additional options for the lookup
+   * @returns Promise with Result containing geolocation data or error
+   */
+  async safeLookup(
+    ip: string,
+    options: LookupOptions = {}
+  ): Promise<Result<IPGeolocationResponse>> {
+    // Validation checks
+    if (!ip) {
+      return {
+        ok: false,
+        error: {
+          type: "INVALID_INPUT",
+          message: "IP address is required",
+        },
+      };
+    }
+
+    if (typeof ip !== "string") {
+      return {
+        ok: false,
+        error: {
+          type: "INVALID_INPUT",
+          message: "IP address must be a string",
+        },
+      };
+    }
+
+    const trimmedIP = ip.trim();
+    if (!this.isValidIP(trimmedIP)) {
+      return {
+        ok: false,
+        error: {
+          type: "INVALID_IP_ADDRESS",
+          message: `Invalid IP address format: ${ip}`,
+        },
+      };
+    }
+
+    try {
+      const params: Record<string, string> = {};
+      const fields: string[] = [];
+
+      if (options.include?.asn) fields.push("asn");
+      if (options.include?.isp) fields.push("isp");
+
+      if (fields.length > 0) {
+        params.fields = fields.join(",");
+      }
+
+      const response = await this.client.get<IPGeolocationResponse>(
+        `/${trimmedIP}`,
+        { params }
+      );
+
+      return {
+        ok: true,
+        data: response.data,
+      };
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 401) {
+          return {
+            ok: false,
+            error: {
+              type: "UNAUTHORIZED",
+              message: "Invalid API key",
+              details: error.response.data,
+            },
+          };
+        }
+        if (error.response?.status === 429) {
+          return {
+            ok: false,
+            error: {
+              type: "QUOTA_EXCEEDED",
+              message: "Quota exceeded",
+              details: error.response.data,
+            },
+          };
+        }
+        if (error.response?.status === 500) {
+          return {
+            ok: false,
+            error: {
+              type: "INTERNAL_SERVER_ERROR",
+              message: "Internal server error",
+              details: error.response.data,
+            },
+          };
+        }
+        if (error.response?.data?.error) {
+          // Map API error messages to appropriate error types
+          const apiError = error.response.data.error;
+          let errorType: ErrorType = "UNKNOWN_ERROR";
+
+          if (apiError.includes("invalid") && apiError.includes("ip")) {
+            errorType = "INVALID_IP_ADDRESS";
+          } else if (apiError.includes("reserved")) {
+            errorType = "RESERVED_IP_ADDRESS";
+          } else if (
+            apiError.includes("geolocation") ||
+            apiError.includes("not found")
+          ) {
+            errorType = "GEOLOCATION_NOT_FOUND";
+          } else if (apiError.includes("api key")) {
+            errorType = "NO_API_KEY_PROVIDED";
+          } else if (apiError.includes("input")) {
+            errorType = "INVALID_INPUT";
+          }
+
+          return {
+            ok: false,
+            error: {
+              type: errorType,
+              message: apiError,
+              details: error.response.data,
+            },
+          };
+        }
+        return {
+          ok: false,
+          error: {
+            type: "NETWORK_ERROR",
+            message: "Network error occurred",
+            details: {
+              status: error.response?.status,
+              statusText: error.response?.statusText,
+            },
+          },
+        };
+      }
+      return {
+        ok: false,
+        error: {
+          type: "UNKNOWN_ERROR",
+          message: "An unexpected error occurred",
+          details: error,
+        },
+      };
+    }
+  }
+
+  /**
+   * Get geolocation data for multiple IP addresses (safe version - no exceptions)
+   * @param options - Options for bulk lookup including IPs array and additional fields
+   * @returns Promise with Result containing array of geolocation data or error
+   */
+  async safeBulkLookup(
+    options: BulkLookupOptions
+  ): Promise<Result<BulkLookupResponse>> {
+    const { ips, include } = options;
+
+    // Validation checks
+    if (!Array.isArray(ips)) {
+      return {
+        ok: false,
+        error: {
+          type: "INVALID_INPUT",
+          message: "IPs must be an array",
+        },
+      };
+    }
+
+    if (!ips.length) {
+      return {
+        ok: false,
+        error: {
+          type: "INVALID_INPUT",
+          message: "At least one IP address is required",
+        },
+      };
+    }
+
+    if (ips.length > 500) {
+      return {
+        ok: false,
+        error: {
+          type: "INVALID_INPUT",
+          message: "Maximum of 500 IPs per request allowed",
+        },
+      };
+    }
+
+    // Validate all IPs
+    const invalidIPs = ips.filter((ip) => {
+      if (typeof ip !== "string") return true;
+      return !this.isValidIP(ip.trim());
+    });
+
+    if (invalidIPs.length > 0) {
+      return {
+        ok: false,
+        error: {
+          type: "INVALID_IP_ADDRESS",
+          message: `Invalid IP addresses found: ${invalidIPs.join(", ")}`,
+          details: { invalidIPs },
+        },
+      };
+    }
+
+    try {
+      const params: Record<string, string> = {};
+      const fields: string[] = [];
+
+      if (include?.asn) fields.push("asn");
+      if (include?.isp) fields.push("isp");
+
+      if (fields.length > 0) {
+        params.fields = fields.join(",");
+      }
+
+      const trimmedIPs = ips.map((ip) => ip.trim());
+      const response = await this.client.post<{ results: BulkLookupResponse }>(
+        "/bulk-lookup",
+        { ips: trimmedIPs },
+        { params }
+      );
+
+      if (!response.data.results || !Array.isArray(response.data.results)) {
+        return {
+          ok: false,
+          error: {
+            type: "INTERNAL_SERVER_ERROR",
+            message: "Invalid response format from API",
+            details: response.data,
+          },
+        };
+      }
+
+      return {
+        ok: true,
+        data: response.data.results,
+      };
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 401) {
+          return {
+            ok: false,
+            error: {
+              type: "UNAUTHORIZED",
+              message: "Invalid API key",
+              details: error.response.data,
+            },
+          };
+        }
+        if (error.response?.status === 429) {
+          return {
+            ok: false,
+            error: {
+              type: "QUOTA_EXCEEDED",
+              message: "Quota exceeded",
+              details: error.response.data,
+            },
+          };
+        }
+        if (error.response?.status === 500) {
+          return {
+            ok: false,
+            error: {
+              type: "INTERNAL_SERVER_ERROR",
+              message: "Internal server error",
+              details: error.response.data,
+            },
+          };
+        }
+        if (error.response?.data?.error) {
+          // Map API error messages to appropriate error types
+          const apiError = error.response.data.error;
+          let errorType: ErrorType = "UNKNOWN_ERROR";
+
+          if (apiError.includes("invalid") && apiError.includes("ip")) {
+            errorType = "INVALID_IP_ADDRESS";
+          } else if (apiError.includes("reserved")) {
+            errorType = "RESERVED_IP_ADDRESS";
+          } else if (
+            apiError.includes("geolocation") ||
+            apiError.includes("not found")
+          ) {
+            errorType = "GEOLOCATION_NOT_FOUND";
+          } else if (apiError.includes("api key")) {
+            errorType = "NO_API_KEY_PROVIDED";
+          } else if (apiError.includes("input")) {
+            errorType = "INVALID_INPUT";
+          }
+
+          return {
+            ok: false,
+            error: {
+              type: errorType,
+              message: apiError,
+              details: error.response.data,
+            },
+          };
+        }
+        return {
+          ok: false,
+          error: {
+            type: "NETWORK_ERROR",
+            message: "Network error occurred",
+            details: {
+              status: error.response?.status,
+              statusText: error.response?.statusText,
+            },
+          },
+        };
+      }
+      return {
+        ok: false,
+        error: {
+          type: "UNKNOWN_ERROR",
+          message: "An unexpected error occurred",
+          details: error,
+        },
+      };
     }
   }
 
@@ -244,7 +606,7 @@ export class IPFlare {
           throw new Error(error.response.data.error);
         }
         if (error.response?.status === 429) {
-          throw new Error("Rate limit exceeded");
+          throw new Error("Quota exceeded");
         }
       }
       if (error instanceof Error) {

@@ -171,7 +171,7 @@ describe("IPGeolocation", () => {
       );
     });
 
-    it("should handle 429 rate limit error", async () => {
+    it("should handle 429 quota exceeded error", async () => {
       const errorResponse = new Error("API Error");
       (errorResponse as any).isAxiosError = true;
       (errorResponse as any).response = {
@@ -180,7 +180,7 @@ describe("IPGeolocation", () => {
       mockedAxios.get.mockRejectedValue(errorResponse);
 
       await expect(geolocator.lookup("178.238.11.6")).rejects.toThrow(
-        "Rate limit exceeded"
+        "Quota exceeded"
       );
     });
 
@@ -336,7 +336,7 @@ describe("IPGeolocation", () => {
       ).rejects.toThrow("Invalid API key");
     });
 
-    it("should handle 429 rate limit error", async () => {
+    it("should handle 429 quota exceeded error", async () => {
       const errorResponse = new Error("API Error");
       (errorResponse as any).isAxiosError = true;
       (errorResponse as any).response = {
@@ -346,7 +346,7 @@ describe("IPGeolocation", () => {
 
       await expect(
         geolocator.bulkLookup({ ips: ["178.238.11.6"] })
-      ).rejects.toThrow("Rate limit exceeded");
+      ).rejects.toThrow("Quota exceeded");
     });
 
     it("should handle rate limit with custom API message in bulk", async () => {
@@ -803,6 +803,89 @@ describe("IPGeolocation", () => {
         const unicodeApiKey = "test-key-🔑-测试";
         expect(() => new IPFlare({ apiKey: unicodeApiKey })).not.toThrow();
       });
+    });
+  });
+
+  describe("Error handling edge cases", () => {
+    it("should throw generic error for non-axios errors in lookup", async () => {
+      // Mock a non-axios error
+      const mockError = new Error("Some unexpected error");
+      jest.spyOn(geolocator["client"], "get").mockRejectedValueOnce(mockError);
+
+      await expect(geolocator.lookup("8.8.8.8")).rejects.toThrow(
+        "Failed to fetch geolocation data"
+      );
+    });
+
+    it("should throw generic error for non-Error, non-axios errors in bulkLookup", async () => {
+      // Mock a non-Error, non-axios error (like a string or object)
+      const mockError = "Some unexpected non-Error exception";
+      jest.spyOn(geolocator["client"], "post").mockRejectedValueOnce(mockError);
+
+      await expect(geolocator.bulkLookup({ ips: ["8.8.8.8"] })).rejects.toThrow(
+        "Failed to fetch bulk geolocation data"
+      );
+    });
+
+    it("should handle axios error without response in lookup", async () => {
+      // Mock axios error without response
+      const axiosError = Object.assign(new Error("Network error"), {
+        isAxiosError: true,
+        response: undefined,
+      });
+
+      jest.spyOn(geolocator["client"], "get").mockRejectedValueOnce(axiosError);
+
+      await expect(geolocator.lookup("8.8.8.8")).rejects.toThrow(
+        "Failed to fetch geolocation data"
+      );
+    });
+
+    it("should handle axios error without response in bulkLookup", async () => {
+      // Mock axios error without response - this should re-throw the original error
+      const axiosError = Object.assign(new Error("Network error"), {
+        isAxiosError: true,
+        response: undefined,
+      });
+
+      jest
+        .spyOn(geolocator["client"], "post")
+        .mockRejectedValueOnce(axiosError);
+
+      await expect(geolocator.bulkLookup({ ips: ["8.8.8.8"] })).rejects.toThrow(
+        "Network error"
+      );
+    });
+
+    it("should handle axios error with unknown status code in bulkLookup", async () => {
+      // Mock axios error with unknown status code - this should re-throw the original error
+      const axiosError = Object.assign(new Error("Server error"), {
+        isAxiosError: true,
+        response: {
+          status: 503,
+          data: { message: "Service unavailable" },
+        },
+      });
+
+      jest
+        .spyOn(geolocator["client"], "post")
+        .mockRejectedValueOnce(axiosError);
+
+      await expect(geolocator.bulkLookup({ ips: ["8.8.8.8"] })).rejects.toThrow(
+        "Server error"
+      );
+    });
+
+    it("should re-throw Error instances in bulkLookup", async () => {
+      // Mock a custom Error instance
+      const customError = new Error("Custom validation error");
+      jest
+        .spyOn(geolocator["client"], "post")
+        .mockRejectedValueOnce(customError);
+
+      await expect(geolocator.bulkLookup({ ips: ["8.8.8.8"] })).rejects.toThrow(
+        "Custom validation error"
+      );
     });
   });
 });

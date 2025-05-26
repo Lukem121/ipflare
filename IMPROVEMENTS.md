@@ -23,7 +23,7 @@ This document outlines all the improvements made to the IPFlare IP geolocation l
 
 ### 3. **Specific HTTP Status Code Handling**
 - ✅ 401 Unauthorized → "Invalid API key" 
-- ✅ 429 Too Many Requests → "Rate limit exceeded"
+- ✅ 429 Too Many Requests → "Quota exceeded"
 - ✅ Custom API error messages preserved and propagated
 - ✅ Network timeout and connection error handling
 - ✅ Fixed axios error detection using `axios.isAxiosError()`
@@ -112,7 +112,7 @@ This document outlines all the improvements made to the IPFlare IP geolocation l
 - ✅ Comprehensive logging and error reporting
 - ✅ Memory-efficient bulk operations
 - ✅ Concurrent request handling
-- ✅ Rate limiting awareness
+- ✅ Quota awareness
 
 ### 15. **Developer Experience Improvements**
 - ✅ Better TypeScript IntelliSense support

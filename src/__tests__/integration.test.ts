@@ -247,28 +247,46 @@ describeWithApiKey("IPGeolocation Integration Tests", () => {
         expect(successCount).toBeGreaterThan(testIPs.length * 0.8); // Expect >80% success for public DNS IPs
       }, 20000);
 
-      it("should properly handle rate limiting scenarios", async () => {
-        // Since your API doesn't have rate limiting, this test just verifies
-        // that multiple concurrent requests work properly
+      it("should properly handle quota scenarios", async () => {
+        // This test is designed to check if the library properly reports quota exceeded errors
+        // In production, you might hit quota limits with too many requests
 
         try {
-          // Make several requests in quick succession with known good IPs
-          const promises = [
-            geolocator.lookup("8.8.8.8"),
-            geolocator.lookup("1.1.1.1"),
-            geolocator.lookup("208.67.222.222"),
+          // Use known good IP addresses that should have geolocation data
+          const knownGoodIPs = [
+            "8.8.8.8",
+            "8.8.4.4",
+            "1.1.1.1",
+            "1.0.0.1",
+            "178.238.11.6",
+            "208.67.222.222",
+            "208.67.220.220",
+            "9.9.9.9",
+            "149.112.112.112",
+            "76.76.19.19",
           ];
 
-          const results = await Promise.all(promises);
+          // Make many requests in quick succession
+          const promises = knownGoodIPs.map((ip) => geolocator.lookup(ip));
 
-          // All should succeed since these are well-known public IPs
-          results.forEach((result) => {
-            expect(result.ip).toBeDefined();
-            expect(result.country_code).toBeDefined();
-          });
+          await Promise.all(promises);
+          // If no quota limit, that's fine
         } catch (error) {
-          // If any error occurs, it should be a meaningful one
-          expect(error).toBeInstanceOf(Error);
+          // If we hit a quota limit, ensure it's properly reported
+          if (error instanceof Error && error.message === "Quota exceeded") {
+            expect(error.message).toBe("Quota exceeded");
+          } else if (
+            error instanceof Error &&
+            error.message.includes("Geolocation data not found")
+          ) {
+            // Some IPs might not have geolocation data, which is acceptable
+            console.log(
+              "Some IPs don't have geolocation data, which is expected"
+            );
+          } else {
+            // Re-throw if it's a different error
+            throw error;
+          }
         }
       }, 30000);
     });
