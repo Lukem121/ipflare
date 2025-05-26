@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosError } from "axios";
+import axios, { type AxiosInstance, AxiosError } from "axios";
 
 export interface IPGeolocationResponse {
   ip: string;

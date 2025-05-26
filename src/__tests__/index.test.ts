@@ -1,5 +1,10 @@
 import axios from "axios";
-import { IPFlare, IPGeolocationResponse, BulkLookupResponse } from "../index";
+import {
+  IPFlare,
+  type IPGeolocationResponse,
+  type BulkLookupResponse,
+  type IPGeolocationOptions,
+} from "../index";
 
 // Mock axios
 jest.mock("axios");
@@ -22,7 +27,9 @@ describe("IPGeolocation", () => {
 
   describe("constructor", () => {
     it("should throw error when API key is not provided", () => {
-      expect(() => new IPFlare({} as any)).toThrow("API key is required");
+      expect(() => new IPFlare({} as IPGeolocationOptions)).toThrow(
+        "API key is required"
+      );
     });
 
     it("should create instance with custom baseURL", () => {
